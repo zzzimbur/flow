@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2"
+  },
+  "devDependencies": {
+    "parcel": "^2.16.0"
+  }
+}
