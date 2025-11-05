@@ -7,8 +7,10 @@ environment:
   sdk: ^3.9.2
 
 dependencies:
+     fl_chart: ^1.1.1
      flutter:
        sdk: flutter
+     flutter_local_notifications: ^19.5.0
      provider: ^6.1.5+1
     #  firebase_core: ^2.24.0
     #  firebase_auth: ^4.15.0

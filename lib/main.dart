@@ -1,21 +1,28 @@
-// ============================================================================
-// FLOW APP - ПОЛНОЕ ПРИЛОЖЕНИЕ НА FLUTTER
-// ============================================================================
-// Приложение для учёта финансов, задач и графика работы
-// 
-// УСТАНОВКА:
-// 1. flutter create flow_app
-// 2. Скопировать этот код в lib/main.dart
-// 3. flutter pub add provider uuid intl
-// 4. flutter run
-// ============================================================================
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-// ignore: unused_import
-import 'dart:math';
+import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'dart:math' as math;
 
-void main() {
+// Инициализация уведомлений
+final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+    FlutterLocalNotificationsPlugin();
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Инициализация уведомлений
+  const AndroidInitializationSettings initializationSettingsAndroid =
+      AndroidInitializationSettings('@mipmap/ic_launcher');
+  const DarwinInitializationSettings initializationSettingsDarwin =
+      DarwinInitializationSettings();
+  const InitializationSettings initializationSettings = InitializationSettings(
+    android: initializationSettingsAndroid,
+    iOS: initializationSettingsDarwin,
+  );
+  
+  await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+  
   runApp(
     MultiProvider(
       providers: [
@@ -26,8 +33,80 @@ void main() {
   );
 }
 
+// ============================================================================
+// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ ЦВЕТОВ (ИСПРАВЛЕНИЕ ПРОБЛЕМЫ С .shade)
+// ============================================================================
+
+MaterialColor createMaterialColor(Color color) {
+  List<double> strengths = <double>[.05];
+  Map<int, Color> swatch = {};
+  final int r = color.red, g = color.green, b = color.blue;
+
+  for (int i = 1; i < 10; i++) {
+    strengths.add(0.1 * i);
+  }
+  
+  for (var strength in strengths) {
+    final double ds = 0.5 - strength;
+    swatch[(strength * 1000).round()] = Color.fromRGBO(
+      r + ((ds < 0 ? r : (255 - r)) * ds).round(),
+      g + ((ds < 0 ? g : (255 - g)) * ds).round(),
+      b + ((ds < 0 ? b : (255 - b)) * ds).round(),
+      1,
+    );
+  }
+  return MaterialColor(color.value, swatch);
+}
+
+class AppColors {
+  static final green = createMaterialColor(Colors.green);
+  static final purple = createMaterialColor(Colors.purple);
+  static final blue = createMaterialColor(Colors.blue);
+  static final red = createMaterialColor(Colors.red);
+  static final orange = createMaterialColor(Colors.orange);
+  static final indigo = createMaterialColor(Colors.indigo);
+  static final grey = createMaterialColor(Colors.grey);
+}
+
+// ============================================================================
+// СЕРВИС УВЕДОМЛЕНИЙ
+// ============================================================================
+
+class NotificationService {
+  static Future<void> showNotification({
+    required String title,
+    required String body,
+  }) async {
+    final AndroidNotificationDetails androidDetails = 
+    AndroidNotificationDetails(
+    'flow_channel',
+    'Flow Notifications',
+    channelDescription: 'Уведомления о задачах и целях',
+    importance: Importance.high,
+  );
+    
+    const DarwinNotificationDetails iosDetails = DarwinNotificationDetails();
+    
+    final NotificationDetails details = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+    
+    await flutterLocalNotificationsPlugin.show(
+      DateTime.now().millisecondsSinceEpoch % 100000,
+      title,
+      body,
+      details,
+    );
+  }
+}
+
+class AndroidNotificationPriority {
+  static const int high = 1;
+}
+
 class FlowApp extends StatelessWidget {
-  const FlowApp({super.key});
+  FlowApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -35,10 +114,10 @@ class FlowApp extends StatelessWidget {
       title: 'Flow',
       theme: ThemeData(
         primarySwatch: Colors.blue,
-        scaffoldBackgroundColor: Color(0xFFF5F5F5),
+        scaffoldBackgroundColor: const Color(0xFFF5F5F5),
         useMaterial3: true,
       ),
-      home: MainScreen(),
+      home: const MainScreen(),
       debugShowCheckedModeBanner: false,
     );
   }
@@ -47,65 +126,66 @@ class FlowApp extends StatelessWidget {
 // ============================================================================
 // STATE MANAGEMENT
 // ============================================================================
+
 class AppState extends ChangeNotifier {
-  // Пользователь
   String userName = 'Даниил';
   String userEmail = 'daniil@flow.app';
   int hourlyRate = 750;
   bool isPremium = false;
-  
-  // Настройки
   bool notifications = true;
   bool darkMode = false;
   bool sync = true;
   
-  // Задачи
-  final List<Task> _tasks = [
-    Task(
-      id: '1',
-      title: 'Подготовить отчёт',
-      description: 'Клиент: Савои',
-      deadline: DateTime.now(),
-      type: TaskType.paid,
-      hours: 2,
-      rate: 750,
-      isDone: false,
-      priority: Priority.high,
-    ),
-    Task(
-      id: '2',
-      title: 'Дизайн лендинга',
-      description: 'Клиент: TechStart',
-      deadline: DateTime.now().add(Duration(days: 1)),
-      type: TaskType.paid,
-      hours: 4,
-      rate: 800,
-      isDone: false,
-      priority: Priority.high,
-    ),
-    Task(
-      id: '3',
-      title: 'Созвон с клиентом',
-      description: '14:00 - 15:00',
-      deadline: DateTime.now(),
-      type: TaskType.paid,
-      hours: 1,
-      rate: 750,
-      isDone: true,
-      priority: Priority.medium,
-    ),
-    Task(
-      id: '4',
-      title: 'Купить продукты',
-      description: 'Личное',
-      deadline: DateTime.now(),
-      type: TaskType.personal,
-      hours: 0,
-      rate: 0,
-      isDone: false,
-      priority: Priority.low,
-    ),
-  ];
+  final List<Task> _tasks = [];
+
+  AppState() {
+    _tasks.addAll([
+      Task(
+        id: '1',
+        title: 'Подготовить отчёт',
+        description: 'Клиент: Савои',
+        deadline: DateTime.now(),
+        type: TaskType.paid,
+        hours: 2,
+        rate: 750,
+        isDone: false,
+        priority: Priority.high,
+      ),
+      Task(
+        id: '2',
+        title: 'Дизайн лендинга',
+        description: 'Клиент: TechStart',
+        deadline: DateTime.now().add(const Duration(days: 1)),
+        type: TaskType.paid,
+        hours: 4,
+        rate: 800,
+        isDone: false,
+        priority: Priority.high,
+      ),
+      Task(
+        id: '3',
+        title: 'Созвон с клиентом',
+        description: '14:00 - 15:00',
+        deadline: DateTime.now(),
+        type: TaskType.paid,
+        hours: 1,
+        rate: 750,
+        isDone: true,
+        priority: Priority.medium,
+      ),
+      Task(
+        id: '4',
+        title: 'Купить продукты',
+        description: 'Личное',
+        deadline: DateTime.now(),
+        type: TaskType.personal,
+        hours: 0,
+        rate: 0,
+        isDone: false,
+        priority: Priority.low,
+      ),
+    ]);
+  }
 
   List<Task> get tasks => _tasks;
   List<Task> get todayTasks => _tasks.where((t) => 
@@ -132,7 +212,6 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Транзакции
   final List<Transaction> _transactions = [
     Transaction(
       id: '1',
@@ -156,7 +235,23 @@ class AppState extends ChangeNotifier {
       amount: 3750,
       category: 'Работа',
       description: 'Консультация',
-      date: DateTime.now().subtract(Duration(days: 1)),
+      date: DateTime.now().subtract(const Duration(days: 1)),
+    ),
+    Transaction(
+      id: '4',
+      type: TransactionType.expense,
+      amount: 5000,
+      category: 'Транспорт',
+      description: 'Такси',
+      date: DateTime.now().subtract(const Duration(days: 2)),
+    ),
+    Transaction(
+      id: '5',
+      type: TransactionType.expense,
+      amount: 8000,
+      category: 'Развлечения',
+      description: 'Кино и ужин',
+      date: DateTime.now().subtract(const Duration(days: 3)),
     ),
   ];
 
@@ -193,7 +288,6 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  // График работы
   final List<ScheduleSession> _schedule = [
     ScheduleSession(
       id: '1',
@@ -250,7 +344,6 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Шаблоны
   final List<Template> _templates = [
     Template(
       id: '1',
@@ -398,20 +491,18 @@ class Template {
 // ============================================================================
 // ГЛАВНЫЙ ЭКРАН С НАВИГАЦИЕЙ
 // ============================================================================
+
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
 
   @override
-  // ignore: library_private_types_in_public_api
-  _MainScreenState createState() {
-    return _MainScreenState();
-  }
+  State<MainScreen> createState() => _MainScreenState();
 }
 
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
 
-  final List<Widget> _screens = [
+  final List<Widget> _screens = const [
     HomeScreen(),
     FinanceScreen(),
     TasksScreen(),
@@ -428,10 +519,10 @@ class _MainScreenState extends State<MainScreen> {
         onTap: (index) => setState(() => _currentIndex = index),
         type: BottomNavigationBarType.fixed,
         selectedItemColor: Colors.blue,
-        unselectedItemColor: Colors.grey,
+        unselectedItemColor: AppColors.grey[600],
         selectedFontSize: 12,
         unselectedFontSize: 12,
-        items: [
+        items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Главная'),
           BottomNavigationBarItem(icon: Icon(Icons.attach_money), label: 'Финансы'),
           BottomNavigationBarItem(icon: Icon(Icons.check_box), label: 'Задачи'),
@@ -442,7 +533,7 @@ class _MainScreenState extends State<MainScreen> {
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddMenu(context),
         backgroundColor: Colors.blue,
-        child: Icon(Icons.add),
+        child: const Icon(Icons.add),
       ),
     );
   }
@@ -450,10 +541,10 @@ class _MainScreenState extends State<MainScreen> {
   void _showAddMenu(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      shape: RoundedRectangleBorder(
+      shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => AddMenuSheet(),
+      builder: (context) => const AddMenuSheet(),
     );
   }
 }
@@ -461,6 +552,7 @@ class _MainScreenState extends State<MainScreen> {
 // ============================================================================
 // ЭКРАН: ГЛАВНАЯ
 // ============================================================================
+
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
@@ -477,24 +569,23 @@ class HomeScreen extends StatelessWidget {
 
     return SafeArea(
       child: SingleChildScrollView(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               'Доброе утро, ${state.userName} 👋',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
-            SizedBox(height: 4),
+            const SizedBox(height: 4),
             Text(
               _formatDate(DateTime.now()),
-              style: TextStyle(fontSize: 14, color: Colors.grey),
+              style: TextStyle(fontSize: 14, color: AppColors.grey[600]),
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
 
-            // Карточка сводки
             Container(
-              padding: EdgeInsets.all(20),
+              padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [Colors.blue, Colors.blue.shade700],
@@ -502,10 +593,9 @@ class HomeScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    // ignore: deprecated_member_use
                     color: Colors.blue.withOpacity(0.3),
                     blurRadius: 10,
-                    offset: Offset(0, 5),
+                    offset: const Offset(0, 5),
                   ),
                 ],
               ),
@@ -517,11 +607,11 @@ class HomeScreen extends StatelessWidget {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Сегодня запланировано',
+                          const Text('Сегодня запланировано',
                               style: TextStyle(color: Colors.white70, fontSize: 12)),
-                          SizedBox(height: 8),
+                          const SizedBox(height: 8),
                           Text('$todayHours ч',
-                              style: TextStyle(
+                              style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 36,
                                   fontWeight: FontWeight.bold)),
@@ -530,11 +620,11 @@ class HomeScreen extends StatelessWidget {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          Text('Прогноз дохода',
+                          const Text('Прогноз дохода',
                               style: TextStyle(color: Colors.white70, fontSize: 12)),
-                          SizedBox(height: 8),
+                          const SizedBox(height: 8),
                           Text('₽${_formatNumber(todayEarnings)}',
-                              style: TextStyle(
+                              style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 24,
                                   fontWeight: FontWeight.bold)),
@@ -542,19 +632,19 @@ class HomeScreen extends StatelessWidget {
                       ),
                     ],
                   ),
-                  SizedBox(height: 16),
-                  Divider(color: Colors.white24),
-                  SizedBox(height: 8),
+                  const SizedBox(height: 16),
+                  const Divider(color: Colors.white24),
+                  const SizedBox(height: 8),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Выполнено задач',
+                          const Text('Выполнено задач',
                               style: TextStyle(color: Colors.white70, fontSize: 12)),
                           Text('${state.completedTasks.length} из ${state.tasks.length}',
-                              style: TextStyle(
+                              style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 16,
                                   fontWeight: FontWeight.w600)),
@@ -563,10 +653,10 @@ class HomeScreen extends StatelessWidget {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          Text('Ставка',
+                          const Text('Ставка',
                               style: TextStyle(color: Colors.white70, fontSize: 12)),
                           Text('₽${state.hourlyRate}/час',
-                              style: TextStyle(
+                              style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 16,
                                   fontWeight: FontWeight.w600)),
@@ -577,9 +667,8 @@ class HomeScreen extends StatelessWidget {
                 ],
               ),
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
 
-            // Статистика
             Row(
               children: [
                 Expanded(
@@ -588,58 +677,56 @@ class HomeScreen extends StatelessWidget {
                     title: 'ДОХОД ЗА МЕСЯЦ',
                     value: '₽${_formatNumber(state.monthIncome.toInt())}',
                     subtitle: '↑ 15% от плана',
-                    color: Colors.green,
+                    color: AppColors.green,
                   ),
                 ),
-                SizedBox(width: 12),
+                const SizedBox(width: 12),
                 Expanded(
                   child: StatCard(
                     icon: Icons.access_time,
                     title: 'ОТРАБОТАНО',
                     value: '${state.weekHours} ч',
                     subtitle: 'На этой неделе',
-                    color: Colors.purple,
+                    color: AppColors.purple,
                   ),
                 ),
               ],
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
 
-            // Задачи на сегодня
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Задачи на сегодня',
+                const Text('Задачи на сегодня',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 Text('${todayTasks.where((t) => t.isDone).length} из ${todayTasks.length}',
-                    style: TextStyle(fontSize: 12, color: Colors.grey)),
+                    style: TextStyle(fontSize: 12, color: AppColors.grey[600])),
               ],
             ),
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
             
             ...todayTasks.take(3).map((task) => Padding(
-              padding: EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.only(bottom: 8),
               child: TaskItem(task: task),
             )),
 
             if (todayTasks.isEmpty)
               Center(
                 child: Padding(
-                  padding: EdgeInsets.all(20),
+                  padding: const EdgeInsets.all(20),
                   child: Text('Нет задач на сегодня',
-                      style: TextStyle(color: Colors.grey)),
+                      style: TextStyle(color: AppColors.grey[600])),
                 ),
               ),
 
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
 
-            // Прогресс цели
             Container(
-              padding: EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.grey.shade100,
+                color: AppColors.grey[100],
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade300),
+                border: Border.all(color: AppColors.grey[300]!),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -647,22 +734,22 @@ class HomeScreen extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Цель на месяц: ₽150,000',
+                      const Text('Цель на месяц: ₽150,000',
                           style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
                       Text('${((state.monthIncome / 150000) * 100).toInt()}%',
-                          style: TextStyle(fontSize: 12, color: Colors.grey)),
+                          style: TextStyle(fontSize: 12, color: AppColors.grey[600])),
                     ],
                   ),
-                  SizedBox(height: 8),
+                  const SizedBox(height: 8),
                   LinearProgressIndicator(
                     value: state.monthIncome / 150000,
-                    backgroundColor: Colors.grey.shade300,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+                    backgroundColor: AppColors.grey[300],
+                    valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
                     minHeight: 8,
                   ),
-                  SizedBox(height: 8),
+                  const SizedBox(height: 8),
                   Text('Осталось ₽${_formatNumber((150000 - state.monthIncome).toInt())}',
-                      style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      style: TextStyle(fontSize: 12, color: AppColors.grey[600])),
                 ],
               ),
             ),
@@ -674,16 +761,14 @@ class HomeScreen extends StatelessWidget {
 }
 
 // ============================================================================
-// ЭКРАН: ФИНАНСЫ
+// ЭКРАН: ФИНАНСЫ С ГРАФИКАМИ
 // ============================================================================
+
 class FinanceScreen extends StatefulWidget {
   const FinanceScreen({super.key});
 
   @override
-  // ignore: library_private_types_in_public_api
-  _FinanceScreenState createState() {
-    return _FinanceScreenState();
-  }
+  State<FinanceScreen> createState() => _FinanceScreenState();
 }
 
 class _FinanceScreenState extends State<FinanceScreen> {
@@ -693,74 +778,93 @@ class _FinanceScreenState extends State<FinanceScreen> {
   Widget build(BuildContext context) {
     final state = Provider.of<AppState>(context);
 
+    // Группируем расходы по категориям
+    final Map<String, double> categoryExpenses = {};
+    for (var transaction in state.transactions) {
+      if (transaction.type == TransactionType.expense) {
+        categoryExpenses[transaction.category] =
+            (categoryExpenses[transaction.category] ?? 0) + transaction.amount;
+      }
+    }
+
     return SafeArea(
       child: SingleChildScrollView(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Финансы',
+                const Text('Финансы',
                     style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
                 TextButton.icon(
                   onPressed: () => setState(() => showStats = !showStats),
-                  icon: Icon(Icons.bar_chart, size: 18),
+                  icon: const Icon(Icons.bar_chart, size: 18),
                   label: Text(showStats ? 'Скрыть' : 'Статистика'),
                 ),
               ],
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
 
+            // График доходов/расходов
             if (showStats) ...[
               Container(
-                padding: EdgeInsets.all(16),
-                margin: EdgeInsets.only(bottom: 20),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.grey.shade200),
+                  border: Border.all(color: AppColors.grey[200]!),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Финансовая аналитика',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                    SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildStatBox(
-                            'Баланс',
-                            '₽${_formatNumber(state.balance.toInt())}',
-                            state.balance >= 0 ? Colors.green : Colors.red,
-                          ),
-                        ),
-                        SizedBox(width: 12),
-                        Expanded(
-                          child: _buildStatBox(
-                            'Эффективная ставка',
-                            '₽${state.hourlyRate}/ч',
-                            Colors.purple,
-                          ),
-                        ),
-                      ],
+                    const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Text(
+                        'Доходы и расходы за неделю',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
                     ),
+                    FinanceChart(transactions: state.transactions),
                   ],
                 ),
               ),
+              const SizedBox(height: 20),
+
+              // Круговая диаграмма
+              if (categoryExpenses.isNotEmpty) ...[
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.grey[200]!),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Text(
+                          'Распределение расходов',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        ),
+                      ),
+                      ExpensePieChart(categoryExpenses: categoryExpenses),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
             ],
 
-            // Карточка баланса
             Container(
-              padding: EdgeInsets.all(20),
+              padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [Colors.grey.shade800, Colors.grey.shade900],
+                  colors: [AppColors.grey[800]!, AppColors.grey[900]!],
                 ),
                 borderRadius: BorderRadius.circular(16),
-                boxShadow: [
+                boxShadow: const [
                   BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 5)),
                 ],
               ),
@@ -768,14 +872,14 @@ class _FinanceScreenState extends State<FinanceScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('Баланс',
-                      style: TextStyle(color: Colors.grey.shade400, fontSize: 14)),
-                  SizedBox(height: 8),
+                      style: TextStyle(color: AppColors.grey[400], fontSize: 14)),
+                  const SizedBox(height: 8),
                   Text('₽${_formatNumber(state.balance.toInt())}',
-                      style: TextStyle(
+                      style: const TextStyle(
                           color: Colors.white,
                           fontSize: 36,
                           fontWeight: FontWeight.bold)),
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -783,10 +887,10 @@ class _FinanceScreenState extends State<FinanceScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text('Доходы',
-                              style: TextStyle(color: Colors.grey.shade400, fontSize: 14)),
+                              style: TextStyle(color: AppColors.grey[400], fontSize: 14)),
                           Text('+₽${_formatNumber(state.monthIncome.toInt())}',
                               style: TextStyle(
-                                  color: Colors.green.shade400,
+                                  color: AppColors.green[400],
                                   fontSize: 18,
                                   fontWeight: FontWeight.w600)),
                         ],
@@ -795,10 +899,10 @@ class _FinanceScreenState extends State<FinanceScreen> {
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Text('Расходы',
-                              style: TextStyle(color: Colors.grey.shade400, fontSize: 14)),
+                              style: TextStyle(color: AppColors.grey[400], fontSize: 14)),
                           Text('-₽${_formatNumber(state.monthExpense.toInt())}',
                               style: TextStyle(
-                                  color: Colors.red.shade400,
+                                  color: AppColors.red[400],
                                   fontSize: 18,
                                   fontWeight: FontWeight.w600)),
                         ],
@@ -808,85 +912,83 @@ class _FinanceScreenState extends State<FinanceScreen> {
                 ],
               ),
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
 
-            // Доход vs Расход
             Row(
               children: [
                 Expanded(
                   child: Container(
-                    padding: EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.green.shade50,
+                      color: AppColors.green[50],
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.green.shade200),
+                      border: Border.all(color: AppColors.green[200]!),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('ДОХОД',
                             style: TextStyle(
-                                color: Colors.green.shade700,
+                                color: AppColors.green[700],
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600)),
-                        SizedBox(height: 8),
+                        const SizedBox(height: 8),
                         Text('₽${_formatNumber(state.monthIncome.toInt())}',
                             style: TextStyle(
-                                color: Colors.green.shade900,
+                                color: AppColors.green[900],
                                 fontSize: 22,
                                 fontWeight: FontWeight.bold)),
-                        SizedBox(height: 4),
+                        const SizedBox(height: 4),
                         Text('${state.weekHours} часов',
-                            style: TextStyle(color: Colors.green.shade600, fontSize: 11)),
+                            style: TextStyle(color: AppColors.green[600], fontSize: 11)),
                       ],
                     ),
                   ),
                 ),
-                SizedBox(width: 12),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Container(
-                    padding: EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.red.shade50,
+                      color: AppColors.red[50],
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.red.shade200),
+                      border: Border.all(color: AppColors.red[200]!),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('РАСХОДЫ',
                             style: TextStyle(
-                                color: Colors.red.shade700,
+                                color: AppColors.red[700],
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600)),
-                        SizedBox(height: 8),
+                        const SizedBox(height: 8),
                         Text('₽${_formatNumber(state.monthExpense.toInt())}',
                             style: TextStyle(
-                                color: Colors.red.shade900,
+                                color: AppColors.red[900],
                                 fontSize: 22,
                                 fontWeight: FontWeight.bold)),
-                        SizedBox(height: 4),
+                        const SizedBox(height: 4),
                         Text('${((state.monthExpense / state.monthIncome) * 100).toInt()}% от дохода',
-                            style: TextStyle(color: Colors.red.shade600, fontSize: 11)),
+                            style: TextStyle(color: AppColors.red[600], fontSize: 11)),
                       ],
                     ),
                   ),
                 ),
               ],
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
 
-            // Последние операции
-            Text('Последние операции',
+            const Text('Последние операции',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
             ...state.transactions.take(5).map((transaction) => Container(
-              margin: EdgeInsets.only(bottom: 8),
-              padding: EdgeInsets.all(12),
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade200),
+                border: Border.all(color: AppColors.grey[200]!),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -896,10 +998,10 @@ class _FinanceScreenState extends State<FinanceScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(transaction.description,
-                            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                        SizedBox(height: 4),
+                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                        const SizedBox(height: 4),
                         Text(_formatDate(transaction.date),
-                            style: TextStyle(fontSize: 12, color: Colors.grey)),
+                            style: TextStyle(fontSize: 12, color: AppColors.grey[600])),
                       ],
                     ),
                   ),
@@ -921,26 +1023,134 @@ class _FinanceScreenState extends State<FinanceScreen> {
       ),
     );
   }
+}
 
-  Widget _buildStatBox(String label, String value, Color color) {
-    return Container(
-      padding: EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Color(0xFFF5F5F5),
-        borderRadius: BorderRadius.circular(8),
+// ============================================================================
+// ГРАФИКИ
+// ============================================================================
+
+class FinanceChart extends StatelessWidget {
+  final List<Transaction> transactions;
+
+  const FinanceChart({super.key, required this.transactions});
+
+  @override
+  Widget build(BuildContext context) {
+    final Map<int, double> incomeByDay = {};
+    final Map<int, double> expenseByDay = {};
+    
+    for (int i = 0; i < 7; i++) {
+      incomeByDay[i] = 0;
+      expenseByDay[i] = 0;
+    }
+    
+    for (var transaction in transactions) {
+      final dayIndex = transaction.date.weekday - 1;
+      if (transaction.type == TransactionType.income) {
+        incomeByDay[dayIndex] = (incomeByDay[dayIndex] ?? 0) + transaction.amount;
+      } else {
+        expenseByDay[dayIndex] = (expenseByDay[dayIndex] ?? 0) + transaction.amount;
+      }
+    }
+
+    final maxY = math.max(
+      incomeByDay.values.reduce((a, b) => a > b ? a : b),
+      expenseByDay.values.reduce((a, b) => a > b ? a : b),
+    ) * 1.2;
+
+    return SizedBox(
+      height: 200,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: BarChart(
+          BarChartData(
+            alignment: BarChartAlignment.spaceAround,
+            maxY: maxY > 0 ? maxY : 1000,
+            barTouchData: BarTouchData(enabled: true),
+            titlesData: FlTitlesData(
+              show: true,
+              bottomTitles: AxisTitles(
+                sideTitles: SideTitles(
+                  showTitles: true,
+                  getTitlesWidget: (value, meta) {
+                    const days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+                    return Text(days[value.toInt()],
+                        style: const TextStyle(fontSize: 10));
+                  },
+                ),
+              ),
+              leftTitles: const AxisTitles(
+                sideTitles: SideTitles(showTitles: false),
+              ),
+              topTitles: const AxisTitles(
+                sideTitles: SideTitles(showTitles: false),
+              ),
+              rightTitles: const AxisTitles(
+                sideTitles: SideTitles(showTitles: false),
+              ),
+            ),
+            borderData: FlBorderData(show: false),
+            barGroups: List.generate(7, (index) {
+              return BarChartGroupData(
+                x: index,
+                barRods: [
+                  BarChartRodData(
+                    toY: incomeByDay[index] ?? 0,
+                    color: Colors.green,
+                    width: 10,
+                  ),
+                  BarChartRodData(
+                    toY: expenseByDay[index] ?? 0,
+                    color: Colors.red,
+                    width: 10,
+                  ),
+                ],
+              );
+            }),
+          ),
+        ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label,
-              style: TextStyle(color: color.shade600, fontSize: 11)),
-          SizedBox(height: 4),
-          Text(value,
-              style: TextStyle(
-                  color: color.shade900,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold)),
-        ],
+    );
+  }
+}
+
+class ExpensePieChart extends StatelessWidget {
+  final Map<String, double> categoryExpenses;
+
+  const ExpensePieChart({super.key, required this.categoryExpenses});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = [
+      Colors.blue,
+      Colors.green,
+      Colors.orange,
+      Colors.purple,
+      Colors.red,
+    ];
+
+    return SizedBox(
+      height: 200,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: PieChart(
+          PieChartData(
+            sections: categoryExpenses.entries.map((entry) {
+              final index = categoryExpenses.keys.toList().indexOf(entry.key);
+              return PieChartSectionData(
+                value: entry.value,
+                title: '${entry.key}\n₽${_formatNumber(entry.value.toInt())}',
+                color: colors[index % colors.length],
+                radius: 60,
+                titleStyle: const TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              );
+            }).toList(),
+          ),
+        ),
       ),
     );
   }
@@ -949,14 +1159,12 @@ class _FinanceScreenState extends State<FinanceScreen> {
 // ============================================================================
 // ЭКРАН: ЗАДАЧИ
 // ============================================================================
+
 class TasksScreen extends StatefulWidget {
   const TasksScreen({super.key});
 
   @override
-  // ignore: library_private_types_in_public_api
-  _TasksScreenState createState() {
-    return _TasksScreenState();
-  }
+  State<TasksScreen> createState() => _TasksScreenState();
 }
 
 class _TasksScreenState extends State<TasksScreen> {
@@ -998,28 +1206,27 @@ class _TasksScreenState extends State<TasksScreen> {
       child: Column(
         children: [
           Padding(
-            padding: EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Задачи',
+                const Text('Задачи',
                     style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
                 TextButton.icon(
                   onPressed: () => _showTemplates(context),
-                  icon: Icon(Icons.repeat, size: 18),
-                  label: Text('Шаблоны'),
+                  icon: const Icon(Icons.repeat, size: 18),
+                  label: const Text('Шаблоны'),
                 ),
               ],
             ),
           ),
 
-          // Сводка
           Container(
-            margin: EdgeInsets.symmetric(horizontal: 16),
-            padding: EdgeInsets.all(20),
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [Colors.purple, Colors.purple.shade700],
+                colors: [AppColors.purple, AppColors.purple[700]!],
               ),
               borderRadius: BorderRadius.circular(16),
             ),
@@ -1031,11 +1238,11 @@ class _TasksScreenState extends State<TasksScreen> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Активных задач',
+                        const Text('Активных задач',
                             style: TextStyle(color: Colors.white70, fontSize: 12)),
-                        SizedBox(height: 8),
+                        const SizedBox(height: 8),
                         Text('${state.activeTasks.length}',
-                            style: TextStyle(
+                            style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 36,
                                 fontWeight: FontWeight.bold)),
@@ -1044,11 +1251,11 @@ class _TasksScreenState extends State<TasksScreen> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        Text('Потенциал дохода',
+                        const Text('Потенциал дохода',
                             style: TextStyle(color: Colors.white70, fontSize: 12)),
-                        SizedBox(height: 8),
+                        const SizedBox(height: 8),
                         Text('₽${_formatNumber(totalEarnings)}',
-                            style: TextStyle(
+                            style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 24,
                                 fontWeight: FontWeight.bold)),
@@ -1056,63 +1263,61 @@ class _TasksScreenState extends State<TasksScreen> {
                     ),
                   ],
                 ),
-                SizedBox(height: 16),
-                Divider(color: Colors.white24),
-                SizedBox(height: 8),
+                const SizedBox(height: 16),
+                const Divider(color: Colors.white24),
+                const SizedBox(height: 8),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Оплачиваемых часов: $totalHoursч',
-                        style: TextStyle(color: Colors.white70, fontSize: 14)),
+                    Text('Оплачиваемых часов: ${totalHours}ч',
+                        style: const TextStyle(color: Colors.white70, fontSize: 14)),
                     Text('Выполнено: ${state.completedTasks.length}',
-                        style: TextStyle(color: Colors.white70, fontSize: 14)),
+                        style: const TextStyle(color: Colors.white70, fontSize: 14)),
                   ],
                 ),
               ],
             ),
           ),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
 
-          // Фильтры
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
-            padding: EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               children: [
                 _buildFilterChip('Сегодня', 'today', state.todayTasks.length),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 _buildFilterChip('Все', 'all', state.tasks.length),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 _buildFilterChip('Оплачиваемые', 'paid', state.paidTasks.length),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 _buildFilterChip('Личные', 'personal',
                     state.tasks.where((t) => t.type == TaskType.personal).length),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 _buildFilterChip('Выполнено', 'done', state.completedTasks.length),
               ],
             ),
           ),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
 
-          // Список задач
           Expanded(
             child: filteredTasks.isEmpty
                 ? Center(
                     child: Text('Нет задач в этой категории',
-                        style: TextStyle(color: Colors.grey)),
+                        style: TextStyle(color: AppColors.grey[600])),
                   )
                 : ListView.builder(
-                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
                     itemCount: filteredTasks.length,
                     itemBuilder: (context, index) {
                       return Padding(
-                        padding: EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.only(bottom: 12),
                         child: TaskItem(
                           task: filteredTasks[index],
                           onDelete: () {
                             state.deleteTask(filteredTasks[index].id);
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Задача удалена')),
+                              const SnackBar(content: Text('Задача удалена')),
                             );
                           },
                         ),
@@ -1134,7 +1339,7 @@ class _TasksScreenState extends State<TasksScreen> {
       backgroundColor: Colors.white,
       selectedColor: Colors.blue,
       labelStyle: TextStyle(
-        color: isSelected ? Colors.white : Colors.grey.shade700,
+        color: isSelected ? Colors.white : AppColors.grey[700],
         fontWeight: FontWeight.w600,
       ),
     );
@@ -1145,55 +1350,69 @@ class _TasksScreenState extends State<TasksScreen> {
     
     showModalBottomSheet(
       context: context,
-      shape: RoundedRectangleBorder(
+      shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) => Container(
-        padding: EdgeInsets.all(24),
+        padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Шаблоны',
+                const Text('Шаблоны',
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                 IconButton(
                   onPressed: () => Navigator.pop(context),
-                  icon: Icon(Icons.close),
+                  icon: const Icon(Icons.close),
                 ),
               ],
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             ...state.templates.map((template) => InkWell(
               onTap: () {
                 Navigator.pop(context);
-                _createFromTemplate(context, template, state);
+                final task = Task(
+                  id: DateTime.now().millisecondsSinceEpoch.toString(),
+                  title: template.name,
+                  description: 'Создано из шаблона',
+                  deadline: DateTime.now(),
+                  type: TaskType.paid,
+                  hours: template.hours,
+                  rate: template.rate,
+                  isDone: false,
+                  priority: Priority.medium,
+                );
+                state.addTask(task);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Задача создана из шаблона!')),
+                );
               },
               child: Container(
-                margin: EdgeInsets.only(bottom: 8),
-                padding: EdgeInsets.all(16),
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  border: Border.all(color: Colors.grey.shade200),
+                  border: Border.all(color: AppColors.grey[200]!),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
                   children: [
-                    Text(template.icon, style: TextStyle(fontSize: 28)),
-                    SizedBox(width: 16),
+                    Text(template.icon, style: const TextStyle(fontSize: 28)),
+                    const SizedBox(width: 16),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(template.name,
-                              style: TextStyle(fontWeight: FontWeight.w600)),
+                              style: const TextStyle(fontWeight: FontWeight.w600)),
                           Text('${template.hours}ч • ₽${_formatNumber(template.hours * template.rate)}',
-                              style: TextStyle(fontSize: 12, color: Colors.grey)),
+                              style: TextStyle(fontSize: 12, color: AppColors.grey[600])),
                         ],
                       ),
                     ),
-                    Icon(Icons.add, color: Colors.blue),
+                    const Icon(Icons.add, color: Colors.blue),
                   ],
                 ),
               ),
@@ -1203,39 +1422,17 @@ class _TasksScreenState extends State<TasksScreen> {
       ),
     );
   }
-
-  void _createFromTemplate(BuildContext context, Template template, AppState state) {
-    if (template.type == TemplateType.task) {
-      final task = Task(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        title: template.name,
-        description: 'Создано из шаблона',
-        deadline: DateTime.now(),
-        type: TaskType.paid,
-        hours: template.hours,
-        rate: template.rate,
-        isDone: false,
-        priority: Priority.medium,
-      );
-      state.addTask(task);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Задача создана из шаблона!')),
-      );
-    }
-  }
 }
 
 // ============================================================================
 // ЭКРАН: ГРАФИК
 // ============================================================================
+
 class ScheduleScreen extends StatefulWidget {
   const ScheduleScreen({super.key});
 
   @override
-  // ignore: library_private_types_in_public_api
-  _ScheduleScreenState createState() {
-    return _ScheduleScreenState();
-  }
+  State<ScheduleScreen> createState() => _ScheduleScreenState();
 }
 
 class _ScheduleScreenState extends State<ScheduleScreen> {
@@ -1251,54 +1448,84 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
 
     return SafeArea(
       child: SingleChildScrollView(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('График работы',
+                const Text('График работы',
                     style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
                 TextButton.icon(
                   onPressed: () => setState(() => showStats = !showStats),
-                  icon: Icon(Icons.bar_chart, size: 18),
+                  icon: const Icon(Icons.bar_chart, size: 18),
                   label: Text(showStats ? 'Скрыть' : 'Статистика'),
                 ),
               ],
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
 
             if (showStats) ...[
               Container(
-                padding: EdgeInsets.all(16),
-                margin: EdgeInsets.only(bottom: 20),
+                padding: const EdgeInsets.all(16),
+                margin: const EdgeInsets.only(bottom: 20),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.grey.shade200),
+                  border: Border.all(color: AppColors.grey[200]!),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Статистика работы',
+                    const Text('Статистика работы',
                         style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                     Row(
                       children: [
                         Expanded(
-                          child: _buildStatBox(
-                            'Всего отработано',
-                            '${state.weekHours} ч',
-                            Colors.indigo,
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppColors.indigo[50],
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Всего отработано',
+                                    style: TextStyle(color: AppColors.indigo[600], fontSize: 11)),
+                                const SizedBox(height: 4),
+                                Text('${state.weekHours} ч',
+                                    style: TextStyle(
+                                        color: AppColors.indigo[900],
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold)),
+                              ],
+                            ),
                           ),
                         ),
-                        SizedBox(width: 12),
+                        const SizedBox(width: 12),
                         Expanded(
-                          child: _buildStatBox(
-                            'Заработано',
-                            '₽${_formatNumber(state.weekHours * state.hourlyRate)}',
-                            Colors.green,
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppColors.green[50],
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Заработано',
+                                    style: TextStyle(color: AppColors.green[600], fontSize: 11)),
+                                const SizedBox(height: 4),
+                                Text('₽${_formatNumber(state.weekHours * state.hourlyRate)}',
+                                    style: TextStyle(
+                                        color: AppColors.green[900],
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold)),
+                              ],
+                            ),
                           ),
                         ),
                       ],
@@ -1308,12 +1535,11 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
               ),
             ],
 
-            // Недельная сводка
             Container(
-              padding: EdgeInsets.all(20),
+              padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [Colors.indigo, Colors.indigo.shade700],
+                  colors: [AppColors.indigo, AppColors.indigo[700]!],
                 ),
                 borderRadius: BorderRadius.circular(16),
               ),
@@ -1325,11 +1551,11 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Эта неделя',
+                          const Text('Эта неделя',
                               style: TextStyle(color: Colors.white70, fontSize: 12)),
-                          SizedBox(height: 8),
+                          const SizedBox(height: 8),
                           Text('${state.weekHours} часов',
-                              style: TextStyle(
+                              style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 28,
                                   fontWeight: FontWeight.bold)),
@@ -1338,11 +1564,11 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          Text('Заработано',
+                          const Text('Заработано',
                               style: TextStyle(color: Colors.white70, fontSize: 12)),
-                          SizedBox(height: 8),
+                          const SizedBox(height: 8),
                           Text('₽${_formatNumber(state.weekHours * state.hourlyRate)}',
-                              style: TextStyle(
+                              style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 24,
                                   fontWeight: FontWeight.bold)),
@@ -1350,15 +1576,14 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                       ),
                     ],
                   ),
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
                   Container(
-                    padding: EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      // ignore: deprecated_member_use
                       color: Colors.white.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Row(
+                    child: const Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text('Рабочих дней',
@@ -1374,15 +1599,14 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                 ],
               ),
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
 
-            // Календарь неделя
             Container(
-              padding: EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade200),
+                border: Border.all(color: AppColors.grey[200]!),
               ),
               child: Column(
                 children: [
@@ -1390,14 +1614,14 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(_formatMonth(selectedDate),
-                          style: TextStyle(fontWeight: FontWeight.w600)),
+                          style: const TextStyle(fontWeight: FontWeight.w600)),
                       TextButton(
                         onPressed: () => setState(() => selectedDate = DateTime.now()),
-                        child: Text('Сегодня', style: TextStyle(fontSize: 12)),
+                        child: const Text('Сегодня', style: TextStyle(fontSize: 12)),
                       ),
                     ],
                   ),
-                  SizedBox(height: 12),
+                  const SizedBox(height: 12),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: _buildWeekDays(),
@@ -1405,41 +1629,40 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                 ],
               ),
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
 
-            // Расписание на день
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(_formatDate(selectedDate),
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text('Запланировано', style: TextStyle(fontSize: 11, color: Colors.grey)),
-                    Text('$totalHoursч • ₽${_formatNumber(totalEarnings)}',
-                        style: TextStyle(fontWeight: FontWeight.w600)),
+                    Text('Запланировано', style: TextStyle(fontSize: 11, color: AppColors.grey[600])),
+                    Text('${totalHours}ч • ₽${_formatNumber(totalEarnings)}',
+                        style: const TextStyle(fontWeight: FontWeight.w600)),
                   ],
                 ),
               ],
             ),
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
 
             if (todaySchedule.isEmpty)
               Center(
                 child: Padding(
-                  padding: EdgeInsets.all(20),
+                  padding: const EdgeInsets.all(20),
                   child: Text('Нет записей на этот день',
-                      style: TextStyle(color: Colors.grey)),
+                      style: TextStyle(color: AppColors.grey[600])),
                 ),
               )
             else
               ...todaySchedule.map((session) => Container(
-                margin: EdgeInsets.only(bottom: 12),
-                padding: EdgeInsets.all(16),
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  border: Border.all(color: Colors.blue.shade200),
+                  color: AppColors.blue[50],
+                  border: Border.all(color: AppColors.blue[200]!),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Column(
@@ -1456,12 +1679,12 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                                   style: TextStyle(
                                       fontWeight: FontWeight.bold,
                                       fontSize: 16,
-                                      color: Colors.blue.shade700)),
-                              SizedBox(height: 4),
+                                      color: AppColors.blue[700])),
+                              const SizedBox(height: 4),
                               Text(session.client,
                                   style: TextStyle(
                                       fontSize: 13,
-                                      color: Colors.blue.shade600)),
+                                      color: AppColors.blue[600])),
                             ],
                           ),
                         ),
@@ -1472,45 +1695,101 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                                 style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 18,
-                                    color: Colors.blue.shade700)),
+                                    color: AppColors.blue[700])),
                             Text('${session.hours}ч × ₽${session.rate}',
                                 style: TextStyle(
                                     fontSize: 11,
-                                    color: Colors.blue.shade600)),
+                                    color: AppColors.blue[600])),
                           ],
                         ),
                       ],
                     ),
-                    SizedBox(height: 8),
+                    const SizedBox(height: 8),
                     Row(
                       children: [
-                        Icon(Icons.access_time, size: 14, color: Colors.blue.shade700),
-                        SizedBox(width: 4),
+                        Icon(Icons.access_time, size: 14, color: AppColors.blue[700]),
+                        const SizedBox(width: 4),
                         Text('${session.startTime} - ${session.endTime}',
                             style: TextStyle(
                                 fontSize: 13,
-                                color: Colors.blue.shade700)),
+                                color: AppColors.blue[700])),
                       ],
                     ),
                   ],
                 ),
               )),
 
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
 
-            // Быстрая статистика
             Row(
               children: [
                 Expanded(
-                  child: _buildQuickStat('Этот месяц', '${state.weekHours * 4}ч', Colors.blue),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.blue[50],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      children: [
+                        Text('Этот месяц',
+                            style: TextStyle(color: AppColors.blue[600], fontSize: 10),
+                            textAlign: TextAlign.center),
+                        const SizedBox(height: 4),
+                        Text('${state.weekHours * 4}ч',
+                            style: TextStyle(
+                                color: AppColors.blue[700],
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
                 ),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 Expanded(
-                  child: _buildQuickStat('Заработано', '₽${_formatNumber(state.monthIncome.toInt())}', Colors.green),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.green[50],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      children: [
+                        Text('Заработано',
+                            style: TextStyle(color: AppColors.green[600], fontSize: 10),
+                            textAlign: TextAlign.center),
+                        const SizedBox(height: 4),
+                        Text('₽${_formatNumber(state.monthIncome.toInt())}',
+                            style: TextStyle(
+                                color: AppColors.green[700],
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
                 ),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 Expanded(
-                  child: _buildQuickStat('Проектов', '3', Colors.purple),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.purple[50],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      children: [
+                        Text('Проектов',
+                            style: TextStyle(color: AppColors.purple[600], fontSize: 10),
+                            textAlign: TextAlign.center),
+                        const SizedBox(height: 4),
+                        Text('3',
+                            style: TextStyle(
+                                color: AppColors.purple[700],
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -1521,7 +1800,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   }
 
   List<Widget> _buildWeekDays() {
-    final weekDays = ['М', 'Т', 'С', 'Ч', 'П', 'С', 'В'];
+    const weekDays = ['М', 'Т', 'С', 'Ч', 'П', 'С', 'В'];
     final now = DateTime.now();
     final weekStart = now.subtract(Duration(days: now.weekday - 1));
 
@@ -1537,7 +1816,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
           width: 40,
           height: 60,
           decoration: BoxDecoration(
-            color: isSelected ? Colors.blue : Colors.grey.shade50,
+            color: isSelected ? Colors.blue : AppColors.grey[50],
             borderRadius: BorderRadius.circular(8),
           ),
           child: Column(
@@ -1546,16 +1825,16 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
               Text(weekDays[index],
                   style: TextStyle(
                       fontSize: 11,
-                      color: isSelected ? Colors.white : Colors.grey)),
-              SizedBox(height: 4),
+                      color: isSelected ? Colors.white : AppColors.grey[600])),
+              const SizedBox(height: 4),
               Text('${date.day}',
                   style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: isSelected ? Colors.white : Colors.grey.shade800)),
+                      color: isSelected ? Colors.white : AppColors.grey[800])),
               if (isToday)
                 Container(
-                  margin: EdgeInsets.only(top: 4),
+                  margin: const EdgeInsets.only(top: 4),
                   width: 4,
                   height: 4,
                   decoration: BoxDecoration(
@@ -1569,56 +1848,12 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       );
     });
   }
-
-  Widget _buildStatBox(String label, String value, Color color) {
-    return Container(
-      padding: EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.shade50,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: TextStyle(color: color.shade600, fontSize: 11)),
-          SizedBox(height: 4),
-          Text(value,
-              style: TextStyle(
-                  color: color.shade900,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQuickStat(String label, String value, Color color) {
-    return Container(
-      padding: EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.shade50,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        children: [
-          Text(label,
-              style: TextStyle(color: color.shade600, fontSize: 10),
-              textAlign: TextAlign.center),
-          SizedBox(height: 4),
-          Text(value,
-              style: TextStyle(
-                  color: color.shade700,
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold)),
-        ],
-      ),
-    );
-  }
 }
 
 // ============================================================================
 // ЭКРАН: НАСТРОЙКИ
 // ============================================================================
+
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
@@ -1628,30 +1863,28 @@ class SettingsScreen extends StatelessWidget {
 
     return SafeArea(
       child: SingleChildScrollView(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Настройки',
+            const Text('Настройки',
                 style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
 
-            // Premium промо
             if (!state.isPremium)
               Container(
-                padding: EdgeInsets.all(20),
-                margin: EdgeInsets.only(bottom: 20),
+                padding: const EdgeInsets.all(20),
+                margin: const EdgeInsets.only(bottom: 20),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
+                  gradient: const LinearGradient(
                     colors: [Colors.amber, Colors.orange, Colors.deepOrange],
                   ),
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      // ignore: deprecated_member_use
                       color: Colors.orange.withOpacity(0.3),
                       blurRadius: 10,
-                      offset: Offset(0, 5),
+                      offset: const Offset(0, 5),
                     ),
                   ],
                 ),
@@ -1660,17 +1893,16 @@ class SettingsScreen extends StatelessWidget {
                     Row(
                       children: [
                         Container(
-                          padding: EdgeInsets.all(12),
+                          padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            // ignore: deprecated_member_use
                             color: Colors.white.withOpacity(0.2),
                             shape: BoxShape.circle,
                           ),
-                          child: Icon(Icons.workspace_premium,
+                          child: const Icon(Icons.workspace_premium,
                               color: Colors.white, size: 28),
                         ),
-                        SizedBox(width: 16),
-                        Expanded(
+                        const SizedBox(width: 16),
+                        const Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -1687,54 +1919,53 @@ class SettingsScreen extends StatelessWidget {
                         ),
                       ],
                     ),
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                     ElevatedButton(
                       onPressed: () {
                         state.updateSettings(premiumValue: true);
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('🎉 Добро пожаловать в Premium!')),
+                          const SnackBar(content: Text('🎉 Добро пожаловать в Premium!')),
                         );
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
                         foregroundColor: Colors.orange,
-                        minimumSize: Size(double.infinity, 48),
+                        minimumSize: const Size(double.infinity, 48),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: Text('Начать пробный период',
+                      child: const Text('Начать пробный период',
                           style: TextStyle(fontWeight: FontWeight.bold)),
                     ),
-                    SizedBox(height: 8),
-                    Text('7 дней бесплатно, затем ₽299/мес',
+                    const SizedBox(height: 8),
+                    const Text('7 дней бесплатно, затем ₽299/мес',
                         style: TextStyle(color: Colors.white70, fontSize: 12)),
                   ],
                 ),
               ),
 
-            // Секции настроек
             _buildSettingsSection(
               context,
               'Аккаунт',
               [
                 ListTile(
-                  leading: Icon(Icons.person),
-                  title: Text('Профиль'),
+                  leading: const Icon(Icons.person),
+                  title: const Text('Профиль'),
                   subtitle: Text(state.userName),
-                  trailing: Icon(Icons.chevron_right, color: Colors.grey),
+                  trailing: Icon(Icons.chevron_right, color: AppColors.grey[600]),
                   onTap: () {},
                 ),
                 ListTile(
-                  leading: Icon(Icons.email),
-                  title: Text('Email'),
+                  leading: const Icon(Icons.email),
+                  title: const Text('Email'),
                   subtitle: Text(state.userEmail),
-                  trailing: Icon(Icons.chevron_right, color: Colors.grey),
+                  trailing: Icon(Icons.chevron_right, color: AppColors.grey[600]),
                   onTap: () {},
                 ),
                 SwitchListTile(
-                  secondary: Icon(Icons.notifications),
-                  title: Text('Уведомления'),
+                  secondary: const Icon(Icons.notifications),
+                  title: const Text('Уведомления'),
                   value: state.notifications,
                   onChanged: (value) {
                     state.updateSettings(notificationsValue: value);
@@ -1742,45 +1973,45 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ],
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
 
             _buildSettingsSection(
               context,
               'Финансы',
               [
                 ListTile(
-                  leading: Icon(Icons.attach_money),
-                  title: Text('Основная ставка'),
+                  leading: const Icon(Icons.attach_money),
+                  title: const Text('Основная ставка'),
                   subtitle: Text('₽${state.hourlyRate}/час'),
-                  trailing: Icon(Icons.chevron_right, color: Colors.grey),
+                  trailing: Icon(Icons.chevron_right, color: AppColors.grey[600]),
                   onTap: () => _showRateDialog(context, state),
                 ),
                 ListTile(
-                  leading: Icon(Icons.currency_exchange),
-                  title: Text('Валюта'),
-                  subtitle: Text('RUB (₽)'),
-                  trailing: Icon(Icons.chevron_right, color: Colors.grey),
+                  leading: const Icon(Icons.currency_exchange),
+                  title: const Text('Валюта'),
+                  subtitle: const Text('RUB (₽)'),
+                  trailing: Icon(Icons.chevron_right, color: AppColors.grey[600]),
                   onTap: () {},
                 ),
               ],
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
 
             _buildSettingsSection(
               context,
               'Приложение',
               [
                 SwitchListTile(
-                  secondary: Icon(Icons.dark_mode),
-                  title: Text('Тёмная тема'),
+                  secondary: const Icon(Icons.dark_mode),
+                  title: const Text('Тёмная тема'),
                   value: state.darkMode,
                   onChanged: (value) {
                     state.updateSettings(darkModeValue: value);
                   },
                 ),
                 SwitchListTile(
-                  secondary: Icon(Icons.sync),
-                  title: Text('Синхронизация'),
+                  secondary: const Icon(Icons.sync),
+                  title: const Text('Синхронизация'),
                   value: state.sync,
                   onChanged: (value) {
                     state.updateSettings(syncValue: value);
@@ -1788,7 +2019,7 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ],
             ),
-            SizedBox(height: 32),
+            const SizedBox(height: 32),
 
             Center(
               child: TextButton(
@@ -1796,27 +2027,27 @@ class SettingsScreen extends StatelessWidget {
                   showDialog(
                     context: context,
                     builder: (context) => AlertDialog(
-                      title: Text('Выход'),
-                      content: Text('Вы уверены, что хотите выйти?'),
+                      title: const Text('Выход'),
+                      content: const Text('Вы уверены, что хотите выйти?'),
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.pop(context),
-                          child: Text('Отмена'),
+                          child: const Text('Отмена'),
                         ),
                         TextButton(
                           onPressed: () {
                             Navigator.pop(context);
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Вы вышли из аккаунта')),
+                              const SnackBar(content: Text('Вы вышли из аккаунта')),
                             );
                           },
-                          child: Text('Выйти', style: TextStyle(color: Colors.red)),
+                          child: const Text('Выйти', style: TextStyle(color: Colors.red)),
                         ),
                       ],
                     ),
                   );
                 },
-                child: Text('Выйти из аккаунта',
+                child: const Text('Выйти из аккаунта',
                     style: TextStyle(color: Colors.red, fontSize: 14)),
               ),
             ),
@@ -1832,23 +2063,23 @@ class SettingsScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: AppColors.grey[200]!),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: EdgeInsets.all(12),
+            padding: const EdgeInsets.all(12),
             child: Text(
               title,
               style: TextStyle(
                 fontWeight: FontWeight.w600,
                 fontSize: 12,
-                color: Colors.grey.shade700,
+                color: AppColors.grey[700],
               ),
             ),
           ),
-          Divider(height: 1),
+          const Divider(height: 1),
           ...children,
         ],
       ),
@@ -1861,11 +2092,11 @@ class SettingsScreen extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Изменить ставку'),
+        title: const Text('Изменить ставку'),
         content: TextField(
           controller: controller,
           keyboardType: TextInputType.number,
-          decoration: InputDecoration(
+          decoration: const InputDecoration(
             labelText: 'Ставка за час',
             suffixText: '₽/час',
             border: OutlineInputBorder(),
@@ -1874,7 +2105,7 @@ class SettingsScreen extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Отмена'),
+            child: const Text('Отмена'),
           ),
           TextButton(
             onPressed: () {
@@ -1883,11 +2114,11 @@ class SettingsScreen extends StatelessWidget {
                 state.updateSettings(rateValue: newRate);
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Ставка обновлена!')),
+                  const SnackBar(content: Text('Ставка обновлена!')),
                 );
               }
             },
-            child: Text('Сохранить'),
+            child: const Text('Сохранить'),
           ),
         ],
       ),
@@ -1904,9 +2135,10 @@ class StatCard extends StatelessWidget {
   final String title;
   final String value;
   final String subtitle;
-  final Color color;
+  final MaterialColor color;
 
-  const StatCard({super.key, 
+  const StatCard({
+    super.key,
     required this.icon,
     required this.title,
     required this.value,
@@ -1917,13 +2149,13 @@ class StatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [color.shade50, color.shade100],
+          colors: [color[50]!, color[100]!],
         ),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.shade200),
+        border: Border.all(color: color[200]!),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1931,12 +2163,12 @@ class StatCard extends StatelessWidget {
           Row(
             children: [
               Icon(icon, color: color, size: 20),
-              SizedBox(width: 8),
+              const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   title,
                   style: TextStyle(
-                    color: color.shade700,
+                    color: color[700],
                     fontSize: 10,
                     fontWeight: FontWeight.w600,
                   ),
@@ -1944,19 +2176,19 @@ class StatCard extends StatelessWidget {
               ),
             ],
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           Text(
             value,
             style: TextStyle(
-              color: color.shade900,
+              color: color[900],
               fontSize: 22,
               fontWeight: FontWeight.bold,
             ),
           ),
-          SizedBox(height: 4),
+          const SizedBox(height: 4),
           Text(
             subtitle,
-            style: TextStyle(color: color.shade600, fontSize: 11),
+            style: TextStyle(color: color[600], fontSize: 11),
           ),
         ],
       ),
@@ -1999,15 +2231,15 @@ class TaskItem extends StatelessWidget {
     final color = getColor();
 
     return Container(
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border(
           left: BorderSide(color: color, width: 4),
-          top: BorderSide(color: Colors.grey.shade200),
-          right: BorderSide(color: Colors.grey.shade200),
-          bottom: BorderSide(color: Colors.grey.shade200),
+          top: BorderSide(color: AppColors.grey[200]!),
+          right: BorderSide(color: AppColors.grey[200]!),
+          bottom: BorderSide(color: AppColors.grey[200]!),
         ),
       ),
       child: Row(
@@ -2020,25 +2252,25 @@ class TaskItem extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: task.isDone ? Colors.blue : Colors.grey.shade400,
+                  color: task.isDone ? Colors.blue : AppColors.grey[400]!,
                   width: 2,
                 ),
                 color: task.isDone ? Colors.blue : Colors.transparent,
               ),
               child: task.isDone
-                  ? Icon(Icons.check, size: 16, color: Colors.white)
+                  ? const Icon(Icons.check, size: 16, color: Colors.white)
                   : null,
             ),
           ),
-          SizedBox(width: 12),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Text(getIcon(), style: TextStyle(fontSize: 18)),
-                    SizedBox(width: 8),
+                    Text(getIcon(), style: const TextStyle(fontSize: 18)),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         task.title,
@@ -2051,27 +2283,27 @@ class TaskItem extends StatelessWidget {
                     ),
                   ],
                 ),
-                SizedBox(height: 4),
+                const SizedBox(height: 4),
                 Text(
                   task.description,
-                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                  style: TextStyle(fontSize: 13, color: AppColors.grey[600]),
                 ),
-                SizedBox(height: 4),
+                const SizedBox(height: 4),
                 Row(
                   children: [
-                    Icon(Icons.access_time, size: 12, color: Colors.grey),
-                    SizedBox(width: 4),
+                    Icon(Icons.access_time, size: 12, color: AppColors.grey[600]),
+                    const SizedBox(width: 4),
                     Text(
                       _formatDate(task.deadline),
-                      style: TextStyle(fontSize: 11, color: Colors.grey),
+                      style: TextStyle(fontSize: 11, color: AppColors.grey[600]),
                     ),
                     if (task.type == TaskType.paid) ...[
-                      SizedBox(width: 12),
+                      const SizedBox(width: 12),
                       Text(
                         '${task.hours}ч • ₽${_formatNumber(task.hours * task.rate)}',
                         style: TextStyle(
                           fontSize: 11,
-                          color: Colors.green.shade600,
+                          color: AppColors.green[600],
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -2082,12 +2314,12 @@ class TaskItem extends StatelessWidget {
             ),
           ),
           if (onDelete != null) ...[
-            SizedBox(width: 8),
+            const SizedBox(width: 8),
             IconButton(
-              icon: Icon(Icons.delete_outline, size: 20, color: Colors.red.shade300),
+              icon: Icon(Icons.delete_outline, size: 20, color: AppColors.red[300]),
               onPressed: onDelete,
-              constraints: BoxConstraints(),
-              padding: EdgeInsets.all(8),
+              constraints: const BoxConstraints(),
+              padding: const EdgeInsets.all(8),
             ),
           ],
         ],
@@ -2104,22 +2336,22 @@ class AddMenuSheet extends StatelessWidget {
     final state = Provider.of<AppState>(context, listen: false);
     
     return Container(
-      padding: EdgeInsets.all(24),
+      padding: const EdgeInsets.all(24),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Добавить',
+              const Text('Добавить',
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
               IconButton(
                 onPressed: () => Navigator.pop(context),
-                icon: Icon(Icons.close),
+                icon: const Icon(Icons.close),
               ),
             ],
           ),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
           
           _buildMenuItem(
             context,
@@ -2132,7 +2364,7 @@ class AddMenuSheet extends StatelessWidget {
               _showAddTaskDialog(context, state);
             },
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           
           _buildMenuItem(
             context,
@@ -2145,7 +2377,7 @@ class AddMenuSheet extends StatelessWidget {
               _showAddScheduleDialog(context, state);
             },
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           
           _buildMenuItem(
             context,
@@ -2158,7 +2390,7 @@ class AddMenuSheet extends StatelessWidget {
               _showAddTransactionDialog(context, state);
             },
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           
           _buildMenuItem(
             context,
@@ -2169,7 +2401,7 @@ class AddMenuSheet extends StatelessWidget {
             onTap: () {
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Функция в разработке')),
+                const SnackBar(content: Text('Функция в разработке')),
               );
             },
           ),
@@ -2190,35 +2422,35 @@ class AddMenuSheet extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.white,
-          border: Border.all(color: Colors.grey.shade200),
+          border: Border.all(color: AppColors.grey[200]!),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
           children: [
             Container(
-              padding: EdgeInsets.all(12),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: color.grey.shade100,
+                color: color.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(icon, color: color, size: 24),
             ),
-            SizedBox(width: 16),
+            const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(title,
-                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
                   Text(subtitle,
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                      style: TextStyle(fontSize: 12, color: AppColors.grey[600])),
                 ],
               ),
             ),
-            Icon(Icons.chevron_right, color: Colors.grey.shade400),
+            Icon(Icons.chevron_right, color: AppColors.grey[400]),
           ],
         ),
       ),
@@ -2236,59 +2468,59 @@ class AddMenuSheet extends StatelessWidget {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
-          title: Text('Новая задача'),
+          title: const Text('Новая задача'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
                   controller: titleController,
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     labelText: 'Название',
                     border: OutlineInputBorder(),
                   ),
                 ),
-                SizedBox(height: 12),
+                const SizedBox(height: 12),
                 TextField(
                   controller: descController,
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     labelText: 'Описание',
                     border: OutlineInputBorder(),
                   ),
                 ),
-                SizedBox(height: 12),
+                const SizedBox(height: 12),
                 DropdownButtonFormField<TaskType>(
-                  initialValue: selectedType,
-                  decoration: InputDecoration(
+                  value: selectedType,
+                  decoration: const InputDecoration(
                     labelText: 'Тип',
                     border: OutlineInputBorder(),
                   ),
-                  items: [
+                  items: const [
                     DropdownMenuItem(value: TaskType.paid, child: Text('💰 Оплачиваемая')),
                     DropdownMenuItem(value: TaskType.personal, child: Text('🏠 Личная')),
                     DropdownMenuItem(value: TaskType.admin, child: Text('📋 Административная')),
                   ],
                   onChanged: (value) => setState(() => selectedType = value!),
                 ),
-                SizedBox(height: 12),
+                const SizedBox(height: 12),
                 if (selectedType == TaskType.paid)
                   TextField(
                     controller: hoursController,
                     keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
+                    decoration: const InputDecoration(
                       labelText: 'Часы',
                       suffixText: 'ч',
                       border: OutlineInputBorder(),
                     ),
                   ),
-                SizedBox(height: 12),
+                const SizedBox(height: 12),
                 DropdownButtonFormField<Priority>(
-                  initialValue: selectedPriority,
-                  decoration: InputDecoration(
+                  value: selectedPriority,
+                  decoration: const InputDecoration(
                     labelText: 'Приоритет',
                     border: OutlineInputBorder(),
                   ),
-                  items: [
+                  items: const [
                     DropdownMenuItem(value: Priority.high, child: Text('🔴 Высокий')),
                     DropdownMenuItem(value: Priority.medium, child: Text('🟡 Средний')),
                     DropdownMenuItem(value: Priority.low, child: Text('🟢 Низкий')),
@@ -2301,7 +2533,7 @@ class AddMenuSheet extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text('Отмена'),
+              child: const Text('Отмена'),
             ),
             ElevatedButton(
               onPressed: () {
@@ -2320,13 +2552,20 @@ class AddMenuSheet extends StatelessWidget {
                     priority: selectedPriority,
                   );
                   state.addTask(task);
+                  
+                  // Отправить уведомление
+                  NotificationService.showNotification(
+                    title: 'Задача создана',
+                    body: 'Новая задача: ${task.title}',
+                  );
+                  
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('✅ Задача создана!')),
+                    const SnackBar(content: Text('✅ Задача создана!')),
                   );
                 }
               },
-              child: Text('Создать'),
+              child: const Text('Создать'),
             ),
           ],
         ),
@@ -2342,31 +2581,31 @@ class AddMenuSheet extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Новая запись'),
+        title: const Text('Новая запись'),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: titleController,
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   labelText: 'Название',
                   border: OutlineInputBorder(),
                 ),
               ),
-              SizedBox(height: 12),
+              const SizedBox(height: 12),
               TextField(
                 controller: clientController,
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   labelText: 'Клиент',
                   border: OutlineInputBorder(),
                 ),
               ),
-              SizedBox(height: 12),
+              const SizedBox(height: 12),
               TextField(
                 controller: hoursController,
                 keyboardType: TextInputType.number,
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   labelText: 'Часы',
                   suffixText: 'ч',
                   border: OutlineInputBorder(),
@@ -2378,7 +2617,7 @@ class AddMenuSheet extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Отмена'),
+            child: const Text('Отмена'),
           ),
           ElevatedButton(
             onPressed: () {
@@ -2397,11 +2636,11 @@ class AddMenuSheet extends StatelessWidget {
                 state.addScheduleSession(session);
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('📅 Запись добавлена!')),
+                  const SnackBar(content: Text('📅 Запись добавлена!')),
                 );
               }
             },
-            child: Text('Добавить'),
+            child: const Text('Добавить'),
           ),
         ],
       ),
@@ -2417,12 +2656,12 @@ class AddMenuSheet extends StatelessWidget {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
-          title: Text('Новая операция'),
+          title: const Text('Новая операция'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               SegmentedButton<TransactionType>(
-                segments: [
+                segments: const [
                   ButtonSegment(
                     value: TransactionType.income,
                     label: Text('Доход'),
@@ -2439,20 +2678,20 @@ class AddMenuSheet extends StatelessWidget {
                   setState(() => selectedType = newSelection.first);
                 },
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               TextField(
                 controller: amountController,
                 keyboardType: TextInputType.number,
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   labelText: 'Сумма',
                   prefixText: '₽',
                   border: OutlineInputBorder(),
                 ),
               ),
-              SizedBox(height: 12),
+              const SizedBox(height: 12),
               TextField(
                 controller: descController,
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   labelText: 'Описание',
                   border: OutlineInputBorder(),
                 ),
@@ -2462,7 +2701,7 @@ class AddMenuSheet extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text('Отмена'),
+              child: const Text('Отмена'),
             ),
             ElevatedButton(
               onPressed: () {
@@ -2479,11 +2718,11 @@ class AddMenuSheet extends StatelessWidget {
                   state.addTransaction(transaction);
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('💰 Операция добавлена!')),
+                    const SnackBar(content: Text('💰 Операция добавлена!')),
                   );
                 }
               },
-              child: Text('Добавить'),
+              child: const Text('Добавить'),
             ),
           ],
         ),
@@ -2502,11 +2741,11 @@ String _formatNumber(int number) {
 }
 
 String _formatDate(DateTime date) {
-  final months = [
+  const months = [
     'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
     'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'
   ];
-  final weekdays = [
+  const weekdays = [
     'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'
   ];
   
@@ -2521,104 +2760,9 @@ String _formatDate(DateTime date) {
 }
 
 String _formatMonth(DateTime date) {
-  final months = [
+  const months = [
     'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
     'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
   ];
   return '${months[date.month - 1]} ${date.year}';
 }
-
-// ============================================================================
-// ИНСТРУКЦИИ ДЛЯ ДАЛЬНЕЙШЕГО РАЗВИТИЯ
-// ============================================================================
-/*
-
-ПРИЛОЖЕНИЕ ПОЛНОСТЬЮ ГОТОВО К ИСПОЛЬЗОВАНИЮ! 🎉
-
-ЧТО УЖЕ РАБОТАЕТ:
-==================
-✅ Все 5 экранов (Главная, Финансы, Задачи, График, Настройки)
-✅ Добавление задач, транзакций, записей в график
-✅ Фильтрация задач (сегодня, все, оплачиваемые, личные, выполнено)
-✅ Отметка задач как выполненных
-✅ Удаление задач
-✅ Шаблоны для быстрого создания
-✅ Статистика по финансам и графику
-✅ Интерактивный календарь
-✅ Изменение ставки
-✅ Переключатели настроек
-✅ Premium промо
-✅ Форматирование чисел и дат
-✅ State Management через Provider
-
-КАК ЗАПУСТИТЬ:
-==============
-1. Создайте проект:
-   flutter create flow_app
-   cd flow_app
-
-2. Установите зависимости:
-   flutter pub add provider
-
-3. Замените lib/main.dart этим кодом
-
-4. Запустите:
-   flutter run
-
-ЧТО ДОБАВИТЬ ДЛЯ ПРОДАКШЕНА:
-============================
-
-1. БАЗА ДАННЫХ (Firebase/Supabase)
-   - Регистрация и вход пользователей
-   - Сохранение данных в облаке
-   - Синхронизация между устройствами
-   
-2. ЛОКАЛЬНАЯ БАЗА (Hive/SQLite)
-   - Оффлайн режим
-   - Быстрое чтение данных
-   
-3. РАСШИРЕННЫЕ ФУНКЦИИ
-   - Редактирование задач
-   - Категории расходов с бюджетами
-   - Экспорт в PDF/Excel
-   - Графики (fl_chart пакет)
-   - Уведомления (flutter_local_notifications)
-   - Календарь (table_calendar)
-   
-4. ПЛАТЕЖИ
-   - in_app_purchase для подписок
-   - stripe_payment для веб
-   
-5. УЛУЧШЕНИЯ UX
-   - Анимации (Hero, PageRouteBuilder)
-   - Skeleton loaders
-   - Pull-to-refresh
-   - Swipe to delete
-   
-6. ПУБЛИКАЦИЯ
-   - Иконки и splash screen
-   - Подготовка скриншотов
-   - App Store / Google Play
-
-СТОИМОСТЬ ДОРАБОТКИ:
-====================
-Текущее состояние: MVP готов (70% функционала)
-Осталось: 30% (база данных, аутентификация, публикация)
-
-Если нанимать разработчика:
-- 2-4 недели работы
-- ₽100,000 - ₽200,000
-
-Или можете доработать сами, изучив Flutter! 🚀
-
-*/// ============================================================================
-// FLOW APP - ПОЛНОЕ ПРИЛОЖЕНИЕ НА FLUTTER
-// ============================================================================
-// Приложение для учёта финансов, задач и графика работы
-// 
-// УСТАНОВКА:
-// 1. flutter create flow_app
-// 2. Скопировать этот код в lib/main.dart
-// 3. flutter pub add provider uuid intl
-// 4. flutter run
-// ============================================================================
