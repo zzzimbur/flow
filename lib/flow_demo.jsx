@@ -256,7 +256,7 @@ export default function FlowApp() {
       purple: 'bg-purple-500'
     };
 
-    const remaining = parseInt(budget) - parseInt(amount);
+    const remaining = Number(budget.replace(/,/g, "")) - Number(amount.replace(/,/g, ""));
 
     return (
       <div className="bg-white rounded-lg p-3 border border-gray-200">
@@ -893,30 +893,41 @@ export default function FlowApp() {
   );
 
   const SettingsItem = ({ icon, label, value, toggle, toggleValue, onToggle, onClick }) => (
-    <button 
-      onClick={toggle ? onToggle : onClick}
-      className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors text-left"
-    >
+    <div className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors text-left">
       <div className="flex items-center gap-3">
         <span className="text-xl">{icon}</span>
         <span className="text-gray-700 text-sm">{label}</span>
       </div>
       <div className="flex items-center gap-2">
         {value && <span className="text-gray-500 text-sm">{value}</span>}
-        {toggle && (
-          <div 
+        {toggle ? (
+          <button
+            type="button"
+            onClick={onToggle}
             className={`w-11 h-6 rounded-full relative transition-colors ${
               toggleValue ? 'bg-blue-500' : 'bg-gray-300'
             }`}
+            aria-label={`Toggle ${label}`}
           >
-            <div className={`w-5 h-5 bg-white rounded-full absolute top-0.5 shadow-sm transition-transform ${
-              toggleValue ? 'right-0.5' : 'left-0.5'
-            }`}></div>
-          </div>
+            <div
+              className="w-5 h-5 bg-white rounded-full absolute top-0.5 shadow-sm transition-transform"
+              style={{
+                left: toggleValue ? 'calc(100% - 1.25rem)' : '0.125rem'
+              }}
+            ></div>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onClick}
+            className="flex items-center"
+            aria-label={`Edit ${label}`}
+          >
+            <ChevronRight size={18} className="text-gray-400" />
+          </button>
         )}
-        {!toggle && <ChevronRight size={18} className="text-gray-400" />}
       </div>
-    </button>
+    </div>
   );
 
   // Modals
@@ -1143,20 +1154,30 @@ export default function FlowApp() {
     }
   };
 
+  // NavItem moved above main return for consistency
+  function NavItem({ icon, label, active, onClick }) {
+    return (
+      <button 
+        onClick={onClick}
+        className={`flex flex-col items-center gap-1 transition-colors ${active ? 'text-blue-500' : 'text-gray-400'}`}
+      >
+        {icon}
+        <span className="text-xs font-medium">{label}</span>
+      </button>
+    );
+  }
+
   return (
     <div className="max-w-md mx-auto bg-gray-50 min-h-screen relative">
       {/* Status Bar */}
       <div className="bg-white px-6 py-3 flex justify-between items-center text-xs text-gray-600">
         <span>1:40</span>
         <span>Flow</span>
-        <span>⚡ 85%</span>
       </div>
-
       {/* Content */}
-      <div className="overflow-y-auto" style={{height: 'calc(100vh - 120px)'}}>
+      <div className="overflow-y-auto h-[calc(100vh-120px)] md:h-auto">
         {renderContent()}
       </div>
-
       {/* Bottom Navigation */}
       <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-6 py-3 flex justify-around items-center">
         <NavItem icon={<Home size={24} />} label="Главная" active={activeTab === 'home'} onClick={() => setActiveTab('home')} />
@@ -1179,17 +1200,5 @@ export default function FlowApp() {
       <FullCalendarModal />
       <TemplatesModal />
     </div>
-  );
-}
-
-function NavItem({ icon, label, active, onClick }) {
-  return (
-    <button 
-      onClick={onClick}
-      className={`flex flex-col items-center gap-1 transition-colors ${active ? 'text-blue-500' : 'text-gray-400'}`}
-    >
-      {icon}
-      <span className="text-xs font-medium">{label}</span>
-    </button>
   );
 }
