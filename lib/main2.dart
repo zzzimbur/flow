@@ -1,5 +1,4 @@
 // ============================================
-// FLOW APP - ЧАСТЬ 1 из 4
 // Модели, State Management, Main App, MainScreen
 // ============================================
 
@@ -650,12 +649,8 @@ String _formatMonth(DateTime date) {
   ];
   return '${months[date.month - 1]} ${date.year}';
 }
-
-
 // ============================================
-// FLOW APP - ЧАСТЬ 2 из 4 (ИСПРАВЛЕНО)
 // HomeScreen, FinanceScreen, TaskItemWidget
-// ВСТАВЬТЕ ЭТОТ КОД ПОСЛЕ ЧАСТИ 1
 // ============================================
 
 // HOME SCREEN
@@ -1728,11 +1723,8 @@ class _FinanceScreenState extends State<FinanceScreen> {
   }
 }
 
-
 // ============================================
-// FLOW APP - ЧАСТЬ 3 из 4  
 // TasksScreen, ScheduleScreen, SettingsScreen
-// ВСТАВЬТЕ ЭТОТ КОД ПОСЛЕ ЧАСТИ 2
 // ============================================
 
 // TASKS SCREEN
@@ -2715,9 +2707,7 @@ class SettingsScreen extends StatelessWidget {
 }
 
 // ============================================
-// FLOW APP - ЧАСТЬ 4 из 4 (ФИНАЛЬНАЯ)
 // AddMenuSheet, AddTaskSheet (РАСШИРЕННАЯ), AddShiftSheet, AddTransactionSheet
-// ВСТАВЬТЕ ЭТОТ КОД ПОСЛЕ ЧАСТИ 3
 // ============================================
 
 // ADD MENU SHEET
