@@ -1,3 +1,5 @@
+import 'dart:ui';
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
@@ -1771,20 +1773,37 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
   }
 }
 
-class _AddTaskSheetState extends State<AddTaskSheet> {
+class _AddTaskSheetState extends State<AddTaskSheet> with SingleTickerProviderStateMixin {
   final titleController = TextEditingController();
   final descController = TextEditingController();
-  Color selectedColor = Colors.blue;
+  Color selectedColor = const Color(0xFF007AFF);
+  late AnimationController _pulseController;
+  
   final List<Color> colors = [
-    const Color(0xFF007AFF), // iOS Blue
-    const Color(0xFFFF3B30), // iOS Red
-    const Color(0xFF34C759), // iOS Green
-    const Color(0xFFFF9500), // iOS Orange
-    const Color(0xFFAF52DE), // iOS Purple
-    const Color(0xFFFF2D55), // iOS Pink
-    const Color(0xFF5856D6), // iOS Indigo
-    const Color(0xFFFFCC00), // iOS Yellow
+    const Color(0xFF007AFF), // Blue
+    const Color(0xFFFF3B30), // Red
+    const Color(0xFF34C759), // Green
+    const Color(0xFFFF9500), // Orange
+    const Color(0xFFAF52DE), // Purple
+    const Color(0xFFFF2D55), // Pink
+    const Color(0xFF5856D6), // Indigo
+    const Color(0xFFFFCC00), // Yellow
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1793,221 +1812,401 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
 
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1C1C1E) : const Color(0xFFF2F2F7),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isDark
+              ? [
+                  const Color(0xFF1a1a2e),
+                  const Color(0xFF16213e),
+                  selectedColor.withOpacity(0.1),
+                ]
+              : [
+                  const Color(0xFFF5F7FA),
+                  selectedColor.withOpacity(0.05),
+                  selectedColor.withOpacity(0.1),
+                ],
+        ),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
       ),
-      child: SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Handle bar
-            Container(
-              margin: const EdgeInsets.only(top: 12),
-              width: 36,
-              height: 5,
-              decoration: BoxDecoration(
-                color: isDark ? Colors.white.withOpacity(0.3) : Colors.black.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(3),
-              ),
-            ),
-            
-            Padding(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).viewInsets.bottom,
-              ),
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 8),
-                    Text(
-                      'Новая задача',
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? Colors.white : Colors.black,
-                      ),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Handle bar с анимацией
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                width: 36,
+                height: 5,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.white.withOpacity(0.5),
+                      Colors.white.withOpacity(0.3),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(3),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.white.withOpacity(0.1),
+                      blurRadius: 8,
                     ),
-                    const SizedBox(height: 24),
-                    
-                    // Цвет с большими кружками
-                    SizedBox(
-                      height: 60,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: colors.length,
-                        separatorBuilder: (context, index) => const SizedBox(width: 12),
-                        itemBuilder: (context, index) {
-                          final color = colors[index];
-                          final isSelected = selectedColor == color;
-                          return GestureDetector(
-                            onTap: () => setState(() => selectedColor = color),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
-                              width: 60,
-                              height: 60,
-                              decoration: BoxDecoration(
-                                color: color,
-                                shape: BoxShape.circle,
-                                boxShadow: isSelected
-                                    ? [
-                                        BoxShadow(
-                                          color: color.withOpacity(0.5),
-                                          blurRadius: 16,
-                                          spreadRadius: 2,
-                                        )
-                                      ]
-                                    : null,
-                              ),
-                              child: isSelected
-                                  ? const Icon(
-                                      Icons.check,
-                                      color: Colors.white,
-                                      size: 32,
-                                    )
-                                  : null,
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    
-                    // Название
-                    Container(
-                      decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF2C2C2E) : Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
-                            blurRadius: 10,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: TextField(
-                        controller: titleController,
-                        style: TextStyle(
-                          fontSize: 17,
-                          color: isDark ? Colors.white : Colors.black,
-                        ),
-                        decoration: InputDecoration(
-                          hintText: 'Название задачи',
-                          hintStyle: TextStyle(
-                            color: isDark ? Colors.white.withOpacity(0.3) : Colors.black.withOpacity(0.3),
-                          ),
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.all(20),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    
-                    // Описание
-                    Container(
-                      decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF2C2C2E) : Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
-                            blurRadius: 10,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: TextField(
-                        controller: descController,
-                        maxLines: 4,
-                        style: TextStyle(
-                          fontSize: 15,
-                          color: isDark ? Colors.white : Colors.black,
-                        ),
-                        decoration: InputDecoration(
-                          hintText: 'Добавьте описание...',
-                          hintStyle: TextStyle(
-                            color: isDark ? Colors.white.withOpacity(0.3) : Colors.black.withOpacity(0.3),
-                          ),
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.all(20),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    
-                    // Кнопка создать
-                    Container(
-                      width: double.infinity,
-                      height: 56,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            selectedColor,
-                            selectedColor.withOpacity(0.8),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: selectedColor.withOpacity(0.4),
-                            blurRadius: 20,
-                            offset: const Offset(0, 10),
-                          ),
-                        ],
-                      ),
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: () {
-                            if (titleController.text.isNotEmpty) {
-                              final task = Task(
-                                id: DateTime.now().millisecondsSinceEpoch.toString(),
-                                title: titleController.text,
-                                description: descController.text,
-                                deadline: DateTime.now(),
-                                priority: Priority.medium,
-                                isDone: false,
-                                color: selectedColor,
-                                icon: Icons.circle,
-                              );
-                              state.addTask(task);
-                              Navigator.pop(context);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: const Text('✨ Задача создана!'),
-                                  backgroundColor: selectedColor,
-                                  behavior: SnackBarBehavior.floating,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                ),
-                              );
-                            }
-                          },
-                          borderRadius: BorderRadius.circular(16),
-                          child: const Center(
-                            child: Text(
-                              'Создать задачу',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 17,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
                   ],
                 ),
               ),
-            ),
-          ],
+              
+              Padding(
+                padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(context).viewInsets.bottom,
+                ),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 8),
+                      
+                      // Заголовок с градиентом
+                      ShaderMask(
+                        shaderCallback: (bounds) => LinearGradient(
+                          colors: [
+                            isDark ? Colors.white : Colors.black,
+                            selectedColor,
+                          ],
+                        ).createShader(bounds),
+                        child: const Text(
+                          'Новая задача',
+                          style: TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                      
+                      // Выбор цвета со свечением
+                      SizedBox(
+                        height: 70,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: colors.length,
+                          separatorBuilder: (context, index) => const SizedBox(width: 16),
+                          itemBuilder: (context, index) {
+                            final color = colors[index];
+                            final isSelected = selectedColor == color;
+                            
+                            return GestureDetector(
+                              onTap: () {
+                                setState(() => selectedColor = color);
+                                HapticFeedback.mediumImpact();
+                              },
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 300),
+                                curve: Curves.easeOutCubic,
+                                width: isSelected ? 70 : 60,
+                                height: isSelected ? 70 : 60,
+                                child: Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    // Свечение
+                                    if (isSelected)
+                                      AnimatedBuilder(
+                                        animation: _pulseController,
+                                        builder: (context, child) {
+                                          return Container(
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: color.withOpacity(0.6 * _pulseController.value),
+                                                  blurRadius: 30 + (10 * _pulseController.value),
+                                                  spreadRadius: 5 + (5 * _pulseController.value),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    
+                                    // Основной круг
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        gradient: LinearGradient(
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                          colors: [
+                                            color,
+                                            color.withOpacity(0.7),
+                                          ],
+                                        ),
+                                        border: Border.all(
+                                          color: Colors.white.withOpacity(isSelected ? 0.5 : 0.2),
+                                          width: isSelected ? 3 : 2,
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: color.withOpacity(0.3),
+                                            blurRadius: 12,
+                                            offset: const Offset(0, 4),
+                                          ),
+                                        ],
+                                      ),
+                                      child: isSelected
+                                          ? const Icon(
+                                              Icons.check_rounded,
+                                              color: Colors.white,
+                                              size: 32,
+                                            )
+                                          : null,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 28),
+                      
+                      // Стеклянное поле названия
+                      _buildGlassField(
+                        controller: titleController,
+                        hint: 'Название задачи',
+                        icon: Icons.circle_outlined,
+                        isDark: isDark,
+                        color: selectedColor,
+                      ),
+                      const SizedBox(height: 16),
+                      
+                      // Стеклянное поле описания
+                      _buildGlassField(
+                        controller: descController,
+                        hint: 'Добавьте описание...',
+                        icon: Icons.subject_rounded,
+                        isDark: isDark,
+                        color: selectedColor,
+                        maxLines: 4,
+                      ),
+                      const SizedBox(height: 28),
+                      
+                      // Стеклянная кнопка с градиентом
+                      _buildGlassButton(
+                        context: context,
+                        label: 'Создать задачу',
+                        color: selectedColor,
+                        isDark: isDark,
+                        onTap: () {
+                          if (titleController.text.isNotEmpty) {
+                            final task = Task(
+                              id: DateTime.now().millisecondsSinceEpoch.toString(),
+                              title: titleController.text,
+                              description: descController.text,
+                              deadline: DateTime.now(),
+                              priority: Priority.medium,
+                              isDone: false,
+                              color: selectedColor,
+                              icon: Icons.circle,
+                            );
+                            state.addTask(task);
+                            Navigator.pop(context);
+                            
+                            // Красивое уведомление
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Row(
+                                  children: [
+                                    Container(
+                                      width: 4,
+                                      height: 40,
+                                      decoration: BoxDecoration(
+                                        color: selectedColor,
+                                        borderRadius: BorderRadius.circular(2),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    const Expanded(
+                                      child: Text(
+                                        '✨ Задача создана!',
+                                        style: TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                backgroundColor: isDark 
+                                    ? const Color(0xFF2C2C2E) 
+                                    : Colors.white,
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  side: BorderSide(
+                                    color: selectedColor.withOpacity(0.3),
+                                  ),
+                                ),
+                                margin: const EdgeInsets.all(16),
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildGlassField({
+    required TextEditingController controller,
+    required String hint,
+    required IconData icon,
+    required bool isDark,
+    required Color color,
+    int maxLines = 1,
+  }) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: isDark
+                  ? [
+                      Colors.white.withOpacity(0.05),
+                      Colors.white.withOpacity(0.02),
+                    ]
+                  : [
+                      Colors.white.withOpacity(0.9),
+                      Colors.white.withOpacity(0.6),
+                    ],
+            ),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isDark
+                  ? Colors.white.withOpacity(0.1)
+                  : Colors.white.withOpacity(0.5),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: color.withOpacity(0.1),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: TextField(
+            controller: controller,
+            maxLines: maxLines,
+            style: TextStyle(
+              fontSize: maxLines > 1 ? 15 : 17,
+              color: isDark ? Colors.white : Colors.black87,
+              fontWeight: FontWeight.w500,
+            ),
+            decoration: InputDecoration(
+              hintText: hint,
+              hintStyle: TextStyle(
+                color: isDark 
+                    ? Colors.white.withOpacity(0.3) 
+                    : Colors.black.withOpacity(0.3),
+              ),
+              prefixIcon: Icon(
+                icon,
+                color: color.withOpacity(0.7),
+                size: 22,
+              ),
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: maxLines > 1 ? 16 : 18,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGlassButton({
+    required BuildContext context,
+    required String label,
+    required Color color,
+    required bool isDark,
+    required VoidCallback onTap,
+  }) {
+    return AnimatedBuilder(
+      animation: _pulseController,
+      builder: (context, child) {
+        return Container(
+          height: 60,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: color.withOpacity(0.4 + (0.1 * _pulseController.value)),
+                blurRadius: 25,
+                offset: const Offset(0, 12),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      color,
+                      color.withOpacity(0.8),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.3),
+                    width: 1.5,
+                  ),
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: onTap,
+                    borderRadius: BorderRadius.circular(20),
+                    splashColor: Colors.white.withOpacity(0.2),
+                    highlightColor: Colors.white.withOpacity(0.1),
+                    child: Center(
+                      child: Text(
+                        label,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -2504,7 +2703,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   }
 
   List<Widget> _buildWeekDays(bool isDark) {
-    const weekDays = ['М', 'Т', 'С', 'Ч', 'П', 'С', 'В'];
+    const weekDays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
     final now = DateTime.now();
     final weekStart = now.subtract(Duration(days: now.weekday - 1));
 
