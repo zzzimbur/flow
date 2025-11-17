@@ -533,7 +533,7 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
             onPressed: () {
               _fabController.forward().then((_) => _fabController.reverse());
               HapticFeedback.mediumImpact();
-              _showAddMenu(context);
+              _handleFabPress(context); // ИСПРАВЛЕНО: умная кнопка
             },
             backgroundColor: Colors.transparent,
             elevation: 0,
@@ -542,6 +542,42 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
         ),
       ),
     );
+  }
+
+  // ДОБАВЛЕНО: Умная кнопка + в зависимости от экрана
+  void _handleFabPress(BuildContext context) {
+    switch (_currentIndex) {
+      case 0: // Главная - показать меню выбора
+        _showAddMenu(context);
+        break;
+      case 1: // Финансы - сразу добавить операцию
+        showModalBottomSheet(
+          context: context,
+          backgroundColor: Colors.transparent,
+          isScrollControlled: true,
+          builder: (context) => const AddTransactionSheet(),
+        );
+        break;
+      case 2: // Задачи - сразу добавить задачу
+        showModalBottomSheet(
+          context: context,
+          backgroundColor: Colors.transparent,
+          isScrollControlled: true,
+          builder: (context) => const AddTaskSheet(),
+        );
+        break;
+      case 3: // График - сразу добавить смену
+        showModalBottomSheet(
+          context: context,
+          backgroundColor: Colors.transparent,
+          isScrollControlled: true,
+          builder: (context) => const AddShiftSheet(),
+        );
+        break;
+      case 4: // Настройки - показать меню
+        _showAddMenu(context);
+        break;
+    }
   }
 
   Widget _buildNavItem(int index, IconData icon, String label, bool isDark) {
@@ -649,6 +685,7 @@ String _formatMonth(DateTime date) {
   ];
   return '${months[date.month - 1]} ${date.year}';
 }
+
 // ============================================
 // HomeScreen, FinanceScreen, TaskItemWidget
 // ============================================
@@ -1282,46 +1319,28 @@ class FinanceScreen extends StatefulWidget {
 }
 
 class _FinanceScreenState extends State<FinanceScreen> {
-  String selectedFilter = 'month';
+  bool showHistory = false;
 
   @override
   Widget build(BuildContext context) {
     final state = Provider.of<AppState>(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
-    final now = DateTime.now();
-    DateTime startDate;
-    DateTime endDate = now;
-    
-    switch (selectedFilter) {
-      case 'today':
-        startDate = DateTime(now.year, now.month, now.day);
-        break;
-      case 'week':
-        startDate = now.subtract(Duration(days: now.weekday - 1));
-        break;
-      case 'month':
-        startDate = DateTime(now.year, now.month, 1);
-        break;
-      default:
-        startDate = DateTime(now.year, now.month, 1);
-    }
+    final monthStart = DateTime(DateTime.now().year, DateTime.now().month, 1);
+    final monthEnd = DateTime.now();
 
-    final income = state.getIncome(start: startDate, end: endDate);
-    final expense = state.getExpense(start: startDate, end: endDate);
+    final income = state.getIncome(start: monthStart, end: monthEnd);
+    final expense = state.getExpense(start: monthStart, end: monthEnd);
     final balance = income - expense;
-    final transactions = state.transactions.where((t) {
-      if (t.date.isBefore(startDate)) return false;
-      if (t.date.isAfter(endDate)) return false;
-      return true;
-    }).toList();
 
     return SafeArea(
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Row(
+      child: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
@@ -1333,392 +1352,270 @@ class _FinanceScreenState extends State<FinanceScreen> {
                   ),
                 ),
                 IconButton(
-                  onPressed: () => _showAddTransactionSheet(context),
-                  icon: const Icon(Icons.add_circle_outline, size: 28),
-                  color: const Color(0xFF667eea),
+                  onPressed: () => setState(() => showHistory = !showHistory),
+                  icon: Icon(
+                    showHistory ? Icons.show_chart : Icons.history,
+                    color: const Color(0xFF667eea),
+                  ),
                 ),
               ],
             ),
-          ),
+            const SizedBox(height: 24),
 
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            physics: const BouncingScrollPhysics(),
-            child: Row(
-              children: [
-                _buildFilterChip('Сегодня', 'today', isDark),
-                const SizedBox(width: 8),
-                _buildFilterChip('Неделя', 'week', isDark),
-                const SizedBox(width: 8),
-                _buildFilterChip('Месяц', 'month', isDark),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          Expanded(
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Column(
-                children: [
-                  // Баланс карточка
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(24),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                      child: Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
+            // Главная карточка баланса
+            ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: isDark 
+                          ? [
+                              const Color(0xFF1a1a2e).withOpacity(0.9),
+                              const Color(0xFF16213e).withOpacity(0.9),
+                            ]
+                          : [
                               const Color(0xFF667eea).withOpacity(0.9),
                               const Color(0xFF764ba2).withOpacity(0.9),
                             ],
-                          ),
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.2),
-                            width: 1.5,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF667eea).withOpacity(0.3),
-                              blurRadius: 30,
-                              offset: const Offset(0, 15),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Баланс',
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.8),
-                                fontSize: 14,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              '${state.currencySymbol}${_formatNumber(balance.toInt())}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 36,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Expanded(
-                                  child: _buildBalanceItem(
-                                    'Доходы',
-                                    '${state.currencySymbol}${_formatNumber(income.toInt())}',
-                                    const Color(0xFF43e97b),
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: _buildBalanceItem(
-                                    'Расходы',
-                                    '${state.currencySymbol}${_formatNumber(expense.toInt())}',
-                                    const Color(0xFFfa709a),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
                     ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Заголовок транзакций
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Операции',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? Colors.white : const Color(0xFF1F2937),
-                        ),
-                      ),
-                      Text(
-                        '${transactions.length}',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: isDark ? Colors.grey[400] : const Color(0xFF6B7280),
-                        ),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.2),
+                      width: 1.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF667eea).withOpacity(0.3),
+                        blurRadius: 30,
+                        offset: const Offset(0, 15),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
-
-                  // Список транзакций
-                  if (transactions.isEmpty)
-                    Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(32),
-                        child: Column(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(24),
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    const Color(0xFF667eea).withOpacity(0.1),
-                                    const Color(0xFF764ba2).withOpacity(0.1),
-                                  ],
-                                ),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                Icons.attach_money_outlined,
-                                size: 64,
-                                color: const Color(0xFF667eea),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Нет операций',
-                              style: TextStyle(
-                                color: isDark ? Colors.grey[500] : Colors.grey[400],
-                                fontSize: 15,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            TextButton.icon(
-                              onPressed: () => _showAddTransactionSheet(context),
-                              icon: const Icon(Icons.add),
-                              label: const Text('Добавить операцию'),
-                            ),
-                          ],
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Баланс',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.8),
+                          fontSize: 14,
                         ),
                       ),
-                    )
-                  else
-                    ...transactions.map((transaction) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: Dismissible(
-                        key: Key(transaction.id),
-                        direction: DismissDirection.endToStart,
-                        background: Container(
-                          alignment: Alignment.centerRight,
-                          padding: const EdgeInsets.only(right: 20),
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFFf093fb), Color(0xFFf5576c)],
-                            ),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: const Icon(Icons.delete_rounded, color: Colors.white),
+                      const SizedBox(height: 8),
+                      Text(
+                        '${state.currencySymbol}${_formatNumber(balance.toInt())}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 40,
+                          fontWeight: FontWeight.bold,
                         ),
-                        onDismissed: (direction) {
-                          state.deleteTransaction(transaction.id);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Операция удалена'),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        },
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(16),
-                          child: BackdropFilter(
-                            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                      ),
+                      const SizedBox(height: 20),
+                      Row(
+                        children: [
+                          Expanded(
                             child: Container(
                               padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: isDark
-                                      ? [
-                                          Colors.white.withOpacity(0.08),
-                                          Colors.white.withOpacity(0.04),
-                                        ]
-                                      : [
-                                          Colors.white.withOpacity(0.9),
-                                          Colors.white.withOpacity(0.7),
-                                        ],
-                                ),
+                                color: Colors.white.withOpacity(0.15),
                                 borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: isDark
-                                      ? Colors.white.withOpacity(0.1)
-                                      : Colors.black.withOpacity(0.05),
-                                ),
                               ),
-                              child: Row(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        colors: transaction.type == TransactionType.income
-                                            ? [const Color(0xFF43e97b), const Color(0xFF43e97b).withOpacity(0.7)]
-                                            : [const Color(0xFFfa709a), const Color(0xFFfa709a).withOpacity(0.7)],
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.arrow_upward_rounded,
+                                        color: Colors.white.withOpacity(0.8),
+                                        size: 18,
                                       ),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Icon(
-                                      transaction.type == TransactionType.income
-                                          ? Icons.arrow_downward_rounded
-                                          : Icons.arrow_upward_rounded,
-                                      color: Colors.white,
-                                      size: 20,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          transaction.category,
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 16,
-                                            color: isDark ? Colors.white : Colors.black87,
-                                          ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        'Доходы',
+                                        style: TextStyle(
+                                          color: Colors.white.withOpacity(0.8),
+                                          fontSize: 13,
                                         ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          _formatDate(transaction.date),
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            color: isDark ? Colors.grey[400] : const Color(0xFF6B7280),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
+                                      ),
+                                    ],
                                   ),
+                                  const SizedBox(height: 8),
                                   Text(
-                                    '${transaction.type == TransactionType.income ? '+' : '-'}${state.currencySymbol}${_formatNumber(transaction.amount.toInt())}',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
+                                    '+${state.currencySymbol}${_formatNumber(income.toInt())}',
+                                    style: const TextStyle(
+                                      color: Colors.white,
                                       fontSize: 18,
-                                      color: transaction.type == TransactionType.income
-                                          ? const Color(0xFF43e97b)
-                                          : const Color(0xFFfa709a),
+                                      fontWeight: FontWeight.bold,
                                     ),
                                   ),
                                 ],
                               ),
                             ),
                           ),
-                        ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.arrow_downward_rounded,
+                                        color: Colors.white.withOpacity(0.8),
+                                        size: 18,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        'Расходы',
+                                        style: TextStyle(
+                                          color: Colors.white.withOpacity(0.8),
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    '-${state.currencySymbol}${_formatNumber(expense.toInt())}',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    )),
-                ],
+                    ],
+                  ),
+                ),
               ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
+            const SizedBox(height: 20),
 
-  Widget _buildFilterChip(String label, String value, bool isDark) {
-    final isSelected = selectedFilter == value;
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.lightImpact();
-        setState(() => selectedFilter = value);
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          gradient: isSelected 
-              ? const LinearGradient(
-                  colors: [Color(0xFF667eea), Color(0xFF764ba2)],
-                )
-              : null,
-          color: isSelected 
-              ? null 
-              : isDark 
-                  ? Colors.white.withOpacity(0.08) 
-                  : Colors.white.withOpacity(0.7),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected 
-                ? Colors.transparent
-                : isDark 
-                    ? Colors.white.withOpacity(0.2) 
-                    : Colors.black.withOpacity(0.1),
-          ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: const Color(0xFF667eea).withOpacity(0.3),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
+            // История операций
+            if (showHistory && state.transactions.isNotEmpty) ...[
+              Text(
+                'История операций',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 16),
+              ...state.transactions.take(10).map((transaction) {
+                final isIncome = transaction.type == TransactionType.income;
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: isDark
+                                ? [
+                                    Colors.white.withOpacity(0.08),
+                                    Colors.white.withOpacity(0.04),
+                                  ]
+                                : [
+                                    Colors.white.withOpacity(0.9),
+                                    Colors.white.withOpacity(0.7),
+                                  ],
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isDark
+                                ? Colors.white.withOpacity(0.1)
+                                : Colors.black.withOpacity(0.05),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: isIncome
+                                      ? [
+                                          const Color(0xFF4facfe).withOpacity(0.2),
+                                          const Color(0xFF00f2fe).withOpacity(0.2),
+                                        ]
+                                      : [
+                                          const Color(0xFFf093fb).withOpacity(0.2),
+                                          const Color(0xFFf5576c).withOpacity(0.2),
+                                        ],
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                isIncome ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
+                                color: isIncome ? const Color(0xFF4facfe) : const Color(0xFFf093fb),
+                                size: 24,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    transaction.description,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _formatDate(transaction.date),
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: isDark ? Colors.grey[400] : const Color(0xFF6B7280),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Text(
+                              '${isIncome ? '+' : '-'}${state.currencySymbol}${_formatNumber(transaction.amount.toInt())}',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: isIncome ? const Color(0xFF4facfe) : const Color(0xFFf093fb),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
-                ]
-              : null,
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: isSelected 
-                ? Colors.white 
-                : isDark 
-                    ? Colors.white.withOpacity(0.7) 
-                    : Colors.black.withOpacity(0.7),
-          ),
+                );
+              }),
+            ],
+          ],
         ),
       ),
-    );
-  }
-
-  Widget _buildBalanceItem(String label, String value, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.8),
-              fontSize: 13,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showAddTransactionSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) => const AddTransactionSheet(),
     );
   }
 }
@@ -2926,7 +2823,7 @@ class AddMenuSheet extends StatelessWidget {
   }
 }
 
-// ADD TASK SHEET - РАСШИРЕННАЯ ВЕРСИЯ СО ВСЕМИ ПОЛЯМИ
+// ADD TASK SHEET
 class AddTaskSheet extends StatefulWidget {
   const AddTaskSheet({super.key});
 
@@ -3042,7 +2939,7 @@ class _AddTaskSheetState extends State<AddTaskSheet>
                     padding: EdgeInsets.only(
                       left: 24,
                       right: 24,
-                      top: 20,
+                      top: 24, // ИСПРАВЛЕНО: увеличен отступ
                       bottom: MediaQuery.of(context).viewInsets.bottom + 24,
                     ),
                     child: Column(
@@ -3065,7 +2962,7 @@ class _AddTaskSheetState extends State<AddTaskSheet>
                             ),
                           ),
                         ),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 28), // ИСПРАВЛЕНО: увеличен отступ
                         
                         // Выбор цвета
                         SizedBox(
@@ -3258,7 +3155,7 @@ class _AddTaskSheetState extends State<AddTaskSheet>
                         ),
                         const SizedBox(height: 20),
                         
-                        // Приоритет
+                        // ИСПРАВЛЕНО: Приоритет (Низкий -> Средний -> Высокий)
                         Text(
                           'Приоритет',
                           style: TextStyle(
@@ -3271,9 +3168,9 @@ class _AddTaskSheetState extends State<AddTaskSheet>
                         Row(
                           children: [
                             _buildPriorityChip(
-                              'Высокий',
-                              Priority.high,
-                              Colors.red,
+                              'Низкий',
+                              Priority.low,
+                              Colors.green,
                               isDark,
                             ),
                             const SizedBox(width: 8),
@@ -3285,9 +3182,9 @@ class _AddTaskSheetState extends State<AddTaskSheet>
                             ),
                             const SizedBox(width: 8),
                             _buildPriorityChip(
-                              'Низкий',
-                              Priority.low,
-                              Colors.green,
+                              'Высокий',
+                              Priority.high,
+                              Colors.red,
                               isDark,
                             ),
                           ],
@@ -3389,11 +3286,11 @@ class _AddTaskSheetState extends State<AddTaskSheet>
                               state.addTask(task);
                               Navigator.pop(context);
                               
-                              // Улучшенное уведомление
+                              // ИСПРАВЛЕНО: Более заметное уведомление
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Container(
-                                    padding: const EdgeInsets.symmetric(vertical: 8),
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
                                     child: Row(
                                       children: [
                                         Container(
@@ -3422,25 +3319,25 @@ class _AddTaskSheetState extends State<AddTaskSheet>
                                                   Icon(
                                                     Icons.check_circle_rounded,
                                                     color: Colors.white,
-                                                    size: 20,
+                                                    size: 22,
                                                   ),
-                                                  SizedBox(width: 8),
+                                                  SizedBox(width: 10),
                                                   Text(
                                                     'Задача создана!',
                                                     style: TextStyle(
-                                                      fontSize: 16,
+                                                      fontSize: 17,
                                                       fontWeight: FontWeight.bold,
                                                       color: Colors.white,
                                                     ),
                                                   ),
                                                 ],
                                               ),
-                                              const SizedBox(height: 4),
+                                              const SizedBox(height: 6),
                                               Text(
                                                 titleController.text,
                                                 style: TextStyle(
-                                                  fontSize: 14,
-                                                  color: Colors.white.withOpacity(0.9),
+                                                  fontSize: 15,
+                                                  color: Colors.white.withOpacity(0.95),
                                                 ),
                                                 maxLines: 1,
                                                 overflow: TextOverflow.ellipsis,
@@ -3477,6 +3374,8 @@ class _AddTaskSheetState extends State<AddTaskSheet>
       ),
     );
   }
+
+  // ========== HELPER МЕТОДЫ ==========
 
   Widget _buildGlassField({
     required TextEditingController controller,
@@ -3935,7 +3834,7 @@ class _AddTaskSheetState extends State<AddTaskSheet>
   }
 }
 
-// ADD SHIFT SHEET (сокращенная версия из оригинала)
+// ADD SHIFT SHEET
 class AddShiftSheet extends StatefulWidget {
   const AddShiftSheet({super.key});
 
@@ -3945,50 +3844,480 @@ class AddShiftSheet extends StatefulWidget {
 
 class _AddShiftSheetState extends State<AddShiftSheet> {
   final titleController = TextEditingController();
+  final categoryController = TextEditingController();
+  final hourlyRateController = TextEditingController();
+  final shiftRateController = TextEditingController();
+  final bonusController = TextEditingController();
+  final expensesController = TextEditingController();
   
+  int startHour = 9;
+  int startMinute = 0;
+  int endHour = 17;
+  int endMinute = 0;
+  
+  PaymentType paymentType = PaymentType.hourly;
+  bool isAllDay = false;
+  Color selectedColor = Colors.blue;
+
   @override
   Widget build(BuildContext context) {
+    final state = Provider.of<AppState>(context, listen: false);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     return Container(
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: isDark
-              ? [const Color(0xFF1a1a2e), const Color(0xFF16213e)]
-              : [Colors.white, const Color(0xFFF5F7FA)],
-        ),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        color: isDark ? const Color(0xFF1F2937) : Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      padding: const EdgeInsets.all(24),
+      height: MediaQuery.of(context).size.height * 0.85,
       child: SafeArea(
         child: Column(
-          mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              'Добавление смены',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 20),
-            TextField(
-              controller: titleController,
-              decoration: const InputDecoration(
-                labelText: 'Название смены',
-                border: OutlineInputBorder(),
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Новая смена',
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () {
-                // Добавить логику создания смены
-                Navigator.pop(context);
-              },
-              child: const Text('Создать'),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: titleController,
+                      decoration: InputDecoration(
+                        hintText: 'Название',
+                        filled: true,
+                        fillColor: isDark ? const Color(0xFF374151) : const Color(0xFFF3F4F6),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: categoryController,
+                      decoration: InputDecoration(
+                        hintText: 'Категория (необязательно)',
+                        filled: true,
+                        fillColor: isDark ? const Color(0xFF374151) : const Color(0xFFF3F4F6),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    Container(
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF374151) : const Color(0xFFF3F4F6),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: SwitchListTile(
+                        title: const Text('Весь день'),
+                        value: isAllDay,
+                        onChanged: (value) => setState(() => isAllDay = value),
+                        activeColor: Colors.blue,
+                      ),
+                    ),
+                    
+                    if (!isAllDay) ...[
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () => _showIOSTimePicker(
+                                context,
+                                startHour,
+                                startMinute,
+                                (hour, minute) {
+                                  setState(() {
+                                    startHour = hour;
+                                    startMinute = minute;
+                                  });
+                                },
+                              ),
+                              child: Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: isDark ? const Color(0xFF374151) : const Color(0xFFF3F4F6),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Начало',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: isDark ? Colors.grey[400] : Colors.grey[600],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '${startHour.toString().padLeft(2, '0')}:${startMinute.toString().padLeft(2, '0')}',
+                                      style: const TextStyle(
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () => _showIOSTimePicker(
+                                context,
+                                endHour,
+                                endMinute,
+                                (hour, minute) {
+                                  setState(() {
+                                    endHour = hour;
+                                    endMinute = minute;
+                                  });
+                                },
+                              ),
+                              child: Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: isDark ? const Color(0xFF374151) : const Color(0xFFF3F4F6),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Конец',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: isDark ? Colors.grey[400] : Colors.grey[600],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '${endHour.toString().padLeft(2, '0')}:${endMinute.toString().padLeft(2, '0')}',
+                                      style: const TextStyle(
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Тип оплаты:',
+                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                    ),
+                    const SizedBox(height: 8),
+                    
+                    Container(
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF374151) : const Color(0xFFF3F4F6),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          _buildPaymentTypeButton('Почасовая', PaymentType.hourly),
+                          _buildPaymentTypeButton('За смену', PaymentType.perShift),
+                          _buildPaymentTypeButton('Без оплаты', PaymentType.unpaid),
+                        ],
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    if (paymentType == PaymentType.hourly)
+                      TextField(
+                        controller: hourlyRateController,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          hintText: 'Почасовая ставка',
+                          prefixText: '${state.currencySymbol} ',
+                          filled: true,
+                          fillColor: isDark ? const Color(0xFF374151) : const Color(0xFFF3F4F6),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                      ),
+                    if (paymentType == PaymentType.perShift)
+                      TextField(
+                        controller: shiftRateController,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          hintText: 'Оплата за смену',
+                          prefixText: '${state.currencySymbol} ',
+                          filled: true,
+                          fillColor: isDark ? const Color(0xFF374151) : const Color(0xFFF3F4F6),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                      ),
+                    
+                    if (paymentType != PaymentType.unpaid) ...[
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: bonusController,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          hintText: 'Доплата (необязательно)',
+                          prefixText: '${state.currencySymbol} ',
+                          filled: true,
+                          fillColor: isDark ? const Color(0xFF374151) : const Color(0xFFF3F4F6),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: expensesController,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          hintText: 'Расходы (необязательно)',
+                          prefixText: '${state.currencySymbol} ',
+                          filled: true,
+                          fillColor: isDark ? const Color(0xFF374151) : const Color(0xFFF3F4F6),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                      ),
+                    ],
+                    
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _buildColorOption(Colors.blue),
+                        _buildColorOption(Colors.red),
+                        _buildColorOption(Colors.green),
+                        _buildColorOption(Colors.orange),
+                        _buildColorOption(Colors.purple),
+                        _buildColorOption(Colors.pink),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                ),
+              ),
+            ),
+            
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton(
+                  onPressed: () {
+                    if (titleController.text.isNotEmpty) {
+                      final shift = WorkShift(
+                        id: DateTime.now().millisecondsSinceEpoch.toString(),
+                        date: DateTime.now(),
+                        startTime: '${startHour.toString().padLeft(2, '0')}:${startMinute.toString().padLeft(2, '0')}',
+                        endTime: '${endHour.toString().padLeft(2, '0')}:${endMinute.toString().padLeft(2, '0')}',
+                        title: titleController.text,
+                        category: categoryController.text.isEmpty ? null : categoryController.text,
+                        paymentType: paymentType,
+                        hourlyRate: hourlyRateController.text.isEmpty ? null : double.tryParse(hourlyRateController.text),
+                        shiftRate: shiftRateController.text.isEmpty ? null : double.tryParse(shiftRateController.text),
+                        bonus: bonusController.text.isEmpty ? null : double.tryParse(bonusController.text),
+                        expenses: expensesController.text.isEmpty ? null : double.tryParse(expensesController.text),
+                        color: selectedColor,
+                        icon: Icons.work,
+                        isAllDay: isAllDay,
+                      );
+                      state.addShift(shift);
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('📅 Смена добавлена!')),
+                      );
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: selectedColor,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: const Text(
+                    'Создать',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildPaymentTypeButton(String label, PaymentType type) {
+    final isSelected = paymentType == type;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => paymentType = type),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.blue : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: isSelected ? Colors.white : Colors.grey[600],
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+              fontSize: 13,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildColorOption(Color color) {
+    return GestureDetector(
+      onTap: () => setState(() => selectedColor = color),
+      child: Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+          border: selectedColor == color
+              ? Border.all(color: Colors.white, width: 4)
+              : null,
+          boxShadow: selectedColor == color
+              ? [BoxShadow(color: color.withOpacity(0.4), blurRadius: 12, spreadRadius: 2)]
+              : null,
+        ),
+      ),
+    );
+  }
+
+  void _showIOSTimePicker(
+    BuildContext context,
+    int initialHour,
+    int initialMinute,
+    Function(int, int) onTimeSelected,
+  ) {
+    int selectedHour = initialHour;
+    int selectedMinute = initialMinute;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          height: 300,
+          decoration: BoxDecoration(
+            color: Theme.of(context).brightness == Brightness.dark
+                ? const Color(0xFF1F2937)
+                : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Отмена'),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        onTimeSelected(selectedHour, selectedMinute);
+                        Navigator.pop(context);
+                      },
+                      child: const Text('Готово', style: TextStyle(fontWeight: FontWeight.w600)),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: CupertinoPicker(
+                        scrollController: FixedExtentScrollController(initialItem: initialHour),
+                        itemExtent: 40,
+                        onSelectedItemChanged: (index) {
+                          selectedHour = index;
+                        },
+                        children: List.generate(24, (index) {
+                          return Center(
+                            child: Text(
+                              index.toString().padLeft(2, '0'),
+                              style: const TextStyle(fontSize: 22),
+                            ),
+                          );
+                        }),
+                      ),
+                    ),
+                    const Text(':', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                    Expanded(
+                      child: CupertinoPicker(
+                        scrollController: FixedExtentScrollController(initialItem: initialMinute),
+                        itemExtent: 40,
+                        onSelectedItemChanged: (index) {
+                          selectedMinute = index;
+                        },
+                        children: List.generate(60, (index) {
+                          return Center(
+                            child: Text(
+                              index.toString().padLeft(2, '0'),
+                              style: const TextStyle(fontSize: 22),
+                            ),
+                          );
+                        }),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -4004,16 +4333,60 @@ class AddTransactionSheet extends StatefulWidget {
 class _AddTransactionSheetState extends State<AddTransactionSheet> {
   final amountController = TextEditingController();
   final descController = TextEditingController();
-  final categoryController = TextEditingController();
+  
   TransactionType selectedType = TransactionType.income;
+  String? selectedCategory;
+  
+  // ИСПРАВЛЕНО: Зеленый для дохода, Красный для расхода
+  Color get primaryColor => selectedType == TransactionType.income 
+      ? const Color(0xFF10b981) // Зеленый
+      : const Color(0xFFef4444); // Красный
+
+  // Категории с иконками
+  final Map<String, IconData> incomeCategories = {
+    'Зарплата': Icons.account_balance_wallet,
+    'Фриланс': Icons.laptop_mac,
+    'Инвестиции': Icons.trending_up,
+    'Подарок': Icons.card_giftcard,
+    'Продажа': Icons.sell,
+    'Другое': Icons.more_horiz,
+  };
+
+  final Map<String, IconData> expenseCategories = {
+    'Продукты': Icons.shopping_cart,
+    'Транспорт': Icons.directions_car,
+    'Развлечения': Icons.movie,
+    'Здоровье': Icons.local_hospital,
+    'Одежда': Icons.shopping_bag,
+    'Кафе': Icons.restaurant,
+    'Образование': Icons.school,
+    'Дом': Icons.home,
+    'Связь': Icons.phone,
+    'Другое': Icons.more_horiz,
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    // Устанавливаем первую категорию по умолчанию
+    selectedCategory = incomeCategories.keys.first;
+  }
+
+  @override
+  void dispose() {
+    amountController.dispose();
+    descController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final state = Provider.of<AppState>(context, listen: false);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryColor = selectedType == TransactionType.income 
-        ? const Color(0xFF4facfe)
-        : const Color(0xFFf093fb);
+    
+    final categories = selectedType == TransactionType.income 
+        ? incomeCategories 
+        : expenseCategories;
 
     return Container(
       decoration: BoxDecoration(
@@ -4049,318 +4422,464 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                   ),
                 ),
                 
-                Padding(
-                  padding: EdgeInsets.only(
-                    left: 24,
-                    right: 24,
-                    top: 20,
-                    bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Новая операция',
-                        style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? Colors.white : Colors.black,
+                Flexible(
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    padding: EdgeInsets.only(
+                      left: 24,
+                      right: 24,
+                      top: 20,
+                      bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Новая операция',
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.white : Colors.black,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 24),
-                      
-                      // Переключатель дохода/расхода
-                      Container(
-                        height: 56,
-                        decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF2C2C2E) : Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
-                              blurRadius: 10,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Stack(
-                          children: [
-                            AnimatedAlign(
-                              duration: const Duration(milliseconds: 200),
-                              curve: Curves.easeInOut,
-                              alignment: selectedType == TransactionType.income
-                                  ? Alignment.centerLeft
-                                  : Alignment.centerRight,
-                              child: Container(
-                                width: MediaQuery.of(context).size.width * 0.43,
-                                margin: const EdgeInsets.all(4),
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [
-                                      primaryColor,
-                                      primaryColor.withOpacity(0.8),
+                        const SizedBox(height: 24),
+                        
+                        // ИСПРАВЛЕНО: Переключатель с правильными цветами
+                        Container(
+                          height: 56,
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF2C2C2E) : Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 10,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Stack(
+                            children: [
+                              AnimatedAlign(
+                                duration: const Duration(milliseconds: 200),
+                                curve: Curves.easeInOut,
+                                alignment: selectedType == TransactionType.income
+                                    ? Alignment.centerLeft
+                                    : Alignment.centerRight,
+                                child: Container(
+                                  width: MediaQuery.of(context).size.width * 0.43,
+                                  margin: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        primaryColor,
+                                        primaryColor.withOpacity(0.8),
+                                      ],
+                                    ),
+                                    borderRadius: BorderRadius.circular(14),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: primaryColor.withOpacity(0.3),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                      ),
                                     ],
                                   ),
-                                  borderRadius: BorderRadius.circular(14),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: primaryColor.withOpacity(0.3),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
                                 ),
                               ),
-                            ),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: GestureDetector(
-                                    onTap: () => setState(() => selectedType = TransactionType.income),
-                                    child: Container(
-                                      color: Colors.transparent,
-                                      child: Row(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          Icon(
-                                            Icons.arrow_upward_rounded,
-                                            color: selectedType == TransactionType.income
-                                                ? Colors.white
-                                                : (isDark ? Colors.white.withOpacity(0.5) : Colors.black.withOpacity(0.5)),
-                                            size: 20,
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Text(
-                                            'Доход',
-                                            style: TextStyle(
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: GestureDetector(
+                                      onTap: () {
+                                        setState(() {
+                                          selectedType = TransactionType.income;
+                                          selectedCategory = incomeCategories.keys.first;
+                                        });
+                                        HapticFeedback.lightImpact();
+                                      },
+                                      child: Container(
+                                        color: Colors.transparent,
+                                        child: Row(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Icon(
+                                              Icons.arrow_upward_rounded,
                                               color: selectedType == TransactionType.income
                                                   ? Colors.white
                                                   : (isDark ? Colors.white.withOpacity(0.5) : Colors.black.withOpacity(0.5)),
-                                              fontWeight: FontWeight.w600,
-                                              fontSize: 15,
+                                              size: 20,
                                             ),
-                                          ),
-                                        ],
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              'Доход',
+                                              style: TextStyle(
+                                                color: selectedType == TransactionType.income
+                                                    ? Colors.white
+                                                    : (isDark ? Colors.white.withOpacity(0.5) : Colors.black.withOpacity(0.5)),
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 15,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
-                                Expanded(
-                                  child: GestureDetector(
-                                    onTap: () => setState(() => selectedType = TransactionType.expense),
-                                    child: Container(
-                                      color: Colors.transparent,
-                                      child: Row(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          Icon(
-                                            Icons.arrow_downward_rounded,
-                                            color: selectedType == TransactionType.expense
-                                                ? Colors.white
-                                                : (isDark ? Colors.white.withOpacity(0.5) : Colors.black.withOpacity(0.5)),
-                                            size: 20,
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Text(
-                                            'Расход',
-                                            style: TextStyle(
+                                  Expanded(
+                                    child: GestureDetector(
+                                      onTap: () {
+                                        setState(() {
+                                          selectedType = TransactionType.expense;
+                                          selectedCategory = expenseCategories.keys.first;
+                                        });
+                                        HapticFeedback.lightImpact();
+                                      },
+                                      child: Container(
+                                        color: Colors.transparent,
+                                        child: Row(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Icon(
+                                              Icons.arrow_downward_rounded,
                                               color: selectedType == TransactionType.expense
                                                   ? Colors.white
                                                   : (isDark ? Colors.white.withOpacity(0.5) : Colors.black.withOpacity(0.5)),
-                                              fontWeight: FontWeight.w600,
-                                              fontSize: 15,
+                                              size: 20,
                                             ),
-                                          ),
-                                        ],
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              'Расход',
+                                              style: TextStyle(
+                                                color: selectedType == TransactionType.expense
+                                                    ? Colors.white
+                                                    : (isDark ? Colors.white.withOpacity(0.5) : Colors.black.withOpacity(0.5)),
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 15,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      
-                      // Сумма
-                      Container(
-                        decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF2C2C2E) : Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
-                              blurRadius: 10,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: TextField(
-                          controller: amountController,
-                          keyboardType: TextInputType.number,
-                          style: TextStyle(
-                            fontSize: 34,
-                            fontWeight: FontWeight.bold,
-                            color: primaryColor,
-                          ),
-                          decoration: InputDecoration(
-                            hintText: '0',
-                            hintStyle: TextStyle(
-                              color: primaryColor.withOpacity(0.3),
-                              fontSize: 34,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            prefixIcon: Padding(
-                              padding: const EdgeInsets.only(left: 20, top: 20),
-                              child: Text(
-                                state.currencySymbol,
-                                style: TextStyle(
-                                  fontSize: 34,
-                                  fontWeight: FontWeight.bold,
-                                  color: primaryColor,
-                                ),
+                                ],
                               ),
-                            ),
-                            border: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      
-                      // Описание и категория
-                      Container(
-                        decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF2C2C2E) : Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
-                              blurRadius: 10,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          children: [
-                            TextField(
-                              controller: descController,
-                              style: TextStyle(
-                                fontSize: 17,
-                                color: isDark ? Colors.white : Colors.black,
-                              ),
-                              decoration: InputDecoration(
-                                hintText: 'Описание',
-                                hintStyle: TextStyle(
-                                  color: isDark ? Colors.white.withOpacity(0.3) : Colors.black.withOpacity(0.3),
-                                ),
-                                prefixIcon: Icon(
-                                  Icons.description_outlined,
-                                  color: isDark ? Colors.white.withOpacity(0.5) : Colors.black.withOpacity(0.3),
-                                ),
-                                border: InputBorder.none,
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                              ),
-                            ),
-                            Divider(
-                              height: 1,
-                              color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.1),
-                            ),
-                            TextField(
-                              controller: categoryController,
-                              style: TextStyle(
-                                fontSize: 17,
-                                color: isDark ? Colors.white : Colors.black,
-                              ),
-                              decoration: InputDecoration(
-                                hintText: 'Категория',
-                                hintStyle: TextStyle(
-                                  color: isDark ? Colors.white.withOpacity(0.3) : Colors.black.withOpacity(0.3),
-                                ),
-                                prefixIcon: Icon(
-                                  Icons.folder_outlined,
-                                  color: isDark ? Colors.white.withOpacity(0.5) : Colors.black.withOpacity(0.3),
-                                ),
-                                border: InputBorder.none,
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      
-                      // Кнопка
-                      Container(
-                        width: double.infinity,
-                        height: 56,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              primaryColor,
-                              primaryColor.withOpacity(0.8),
                             ],
                           ),
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: primaryColor.withOpacity(0.4),
-                              blurRadius: 20,
-                              offset: const Offset(0, 10),
-                            ),
-                          ],
                         ),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: () {
-                              final amount = double.tryParse(amountController.text);
-                              if (amount != null && descController.text.isNotEmpty) {
-                                final transaction = Transaction(
-                                  id: DateTime.now().millisecondsSinceEpoch.toString(),
-                                  type: selectedType,
-                                  amount: amount,
-                                  category: categoryController.text.isEmpty 
-                                      ? (selectedType == TransactionType.income ? 'Доход' : 'Расход')
-                                      : categoryController.text,
-                                  description: descController.text,
-                                  date: DateTime.now(),
-                                );
-                                state.addTransaction(transaction);
-                                Navigator.pop(context);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      selectedType == TransactionType.income 
-                                          ? '💰 Доход добавлен!' 
-                                          : '💸 Расход добавлен!',
-                                    ),
-                                    backgroundColor: primaryColor,
-                                    behavior: SnackBarBehavior.floating,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
-                                );
-                              }
-                            },
+                        const SizedBox(height: 20),
+                        
+                        // ИСПРАВЛЕНО: Сумма с центрированным текстом
+                        Container(
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF2C2C2E) : Colors.white,
                             borderRadius: BorderRadius.circular(16),
-                            child: const Center(
-                              child: Text(
-                                'Добавить операцию',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w600,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 10,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: TextField(
+                            controller: amountController,
+                            keyboardType: TextInputType.number,
+                            textAlign: TextAlign.center, // ИСПРАВЛЕНО
+                            style: TextStyle(
+                              fontSize: 34,
+                              fontWeight: FontWeight.bold,
+                              color: primaryColor,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: '${state.currencySymbol} 0',
+                              hintStyle: TextStyle(
+                                color: primaryColor.withOpacity(0.3),
+                                fontSize: 34,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 20, 
+                                vertical: 20, // ИСПРАВЛЕНО: центрирование по вертикали
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        
+                        // Описание
+                        Container(
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF2C2C2E) : Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 10,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: TextField(
+                            controller: descController,
+                            style: TextStyle(
+                              fontSize: 17,
+                              color: isDark ? Colors.white : Colors.black,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: 'Описание',
+                              hintStyle: TextStyle(
+                                color: isDark ? Colors.white.withOpacity(0.3) : Colors.black.withOpacity(0.3),
+                              ),
+                              prefixIcon: Icon(
+                                Icons.description_outlined,
+                                color: isDark ? Colors.white.withOpacity(0.5) : Colors.black.withOpacity(0.3),
+                              ),
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        
+                        // ДОБАВЛЕНО: Выбор категории
+                        Text(
+                          'Категория',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF2C2C2E) : Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 10,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: GridView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            padding: const EdgeInsets.all(12),
+                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 3,
+                              childAspectRatio: 1.2,
+                              crossAxisSpacing: 8,
+                              mainAxisSpacing: 8,
+                            ),
+                            itemCount: categories.length,
+                            itemBuilder: (context, index) {
+                              final category = categories.keys.elementAt(index);
+                              final icon = categories[category]!;
+                              final isSelected = selectedCategory == category;
+                              
+                              return GestureDetector(
+                                onTap: () {
+                                  setState(() => selectedCategory = category);
+                                  HapticFeedback.lightImpact();
+                                },
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  decoration: BoxDecoration(
+                                    gradient: isSelected
+                                        ? LinearGradient(
+                                            colors: [
+                                              primaryColor,
+                                              primaryColor.withOpacity(0.7),
+                                            ],
+                                          )
+                                        : null,
+                                    color: isSelected 
+                                        ? null 
+                                        : isDark 
+                                            ? const Color(0xFF3C3C3E) 
+                                            : const Color(0xFFF5F5F5),
+                                    borderRadius: BorderRadius.circular(12),
+                                    boxShadow: isSelected
+                                        ? [
+                                            BoxShadow(
+                                              color: primaryColor.withOpacity(0.3),
+                                              blurRadius: 8,
+                                              offset: const Offset(0, 2),
+                                            ),
+                                          ]
+                                        : null,
+                                  ),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        icon,
+                                        color: isSelected 
+                                            ? Colors.white 
+                                            : primaryColor,
+                                        size: 28,
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        category,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                          color: isSelected 
+                                              ? Colors.white 
+                                              : isDark 
+                                                  ? Colors.white.withOpacity(0.7) 
+                                                  : Colors.black.withOpacity(0.7),
+                                        ),
+                                        textAlign: TextAlign.center,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        
+                        // ИСПРАВЛЕНО: Кнопка добавить
+                        Container(
+                          width: double.infinity,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                primaryColor,
+                                primaryColor.withOpacity(0.8),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: primaryColor.withOpacity(0.4),
+                                blurRadius: 20,
+                                offset: const Offset(0, 10),
+                              ),
+                            ],
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () {
+                                final amount = double.tryParse(amountController.text);
+                                if (amount != null && amount > 0 && descController.text.isNotEmpty && selectedCategory != null) {
+                                  final transaction = Transaction(
+                                    id: DateTime.now().millisecondsSinceEpoch.toString(),
+                                    type: selectedType,
+                                    amount: amount,
+                                    category: selectedCategory!,
+                                    description: descController.text,
+                                    date: DateTime.now(),
+                                  );
+                                  state.addTransaction(transaction);
+                                  Navigator.pop(context);
+                                  
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Container(
+                                        padding: const EdgeInsets.symmetric(vertical: 12),
+                                        child: Row(
+                                          children: [
+                                            Container(
+                                              width: 4,
+                                              height: 50,
+                                              decoration: BoxDecoration(
+                                                gradient: LinearGradient(
+                                                  begin: Alignment.topCenter,
+                                                  end: Alignment.bottomCenter,
+                                                  colors: [
+                                                    primaryColor,
+                                                    primaryColor.withOpacity(0.5),
+                                                  ],
+                                                ),
+                                                borderRadius: BorderRadius.circular(2),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 16),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Row(
+                                                    children: [
+                                                      Icon(
+                                                        selectedType == TransactionType.income 
+                                                            ? Icons.arrow_upward_rounded 
+                                                            : Icons.arrow_downward_rounded,
+                                                        color: Colors.white,
+                                                        size: 22,
+                                                      ),
+                                                      const SizedBox(width: 10),
+                                                      Text(
+                                                        selectedType == TransactionType.income 
+                                                            ? 'Доход добавлен!' 
+                                                            : 'Расход добавлен!',
+                                                        style: const TextStyle(
+                                                          fontSize: 17,
+                                                          fontWeight: FontWeight.bold,
+                                                          color: Colors.white,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  const SizedBox(height: 6),
+                                                  Text(
+                                                    '${state.currencySymbol}${amount.toStringAsFixed(0)} • $selectedCategory',
+                                                    style: TextStyle(
+                                                      fontSize: 15,
+                                                      color: Colors.white.withOpacity(0.95),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      backgroundColor: isDark 
+                                          ? const Color(0xFF1F2937) 
+                                          : const Color(0xFF374151),
+                                      behavior: SnackBarBehavior.floating,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                      margin: const EdgeInsets.all(16),
+                                      elevation: 8,
+                                      duration: const Duration(seconds: 3),
+                                    ),
+                                  );
+                                }
+                              },
+                              borderRadius: BorderRadius.circular(16),
+                              child: const Center(
+                                child: Text(
+                                  'Добавить операцию',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                    ],
+                        const SizedBox(height: 12),
+                      ],
+                    ),
                   ),
                 ),
               ],
