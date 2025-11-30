@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "590191532624",
+    "project_id": "flowapp-25488",
+    "storage_bucket": "flowapp-25488.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:590191532624:android:fad7095363b1c0f1c84f55",
+        "android_client_info": {
+          "package_name": "com.zzzimbur.flow_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCLDQr52iwR0oiHx9sY3Ura4KC06nq25Ls"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

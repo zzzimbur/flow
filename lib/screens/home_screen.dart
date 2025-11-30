@@ -1,163 +1,308 @@
-// lib/screens/home_screen.dart
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
-import '../providers/app_provider.dart';
 import '../widgets/glass_card.dart';
-import '../screens/add_task_screen.dart';
+import 'settings_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
+  String _getFormattedDate() {
+    final now = DateTime.now();
+    final months = [
+      'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+      'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'
+    ];
+    return '${now.day} ${months[now.month - 1]}';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final appProvider = Provider.of<AppProvider>(context);
-    final stats = appProvider.stats;
-    final undoneTasks = appProvider.tasks.where((t) => !t.done).toList();
-    final dateFormat = DateFormat('d MMMM', 'ru_RU');
+    final formattedDate = _getFormattedDate();
 
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Заголовок
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Добро пожаловать', style: Theme.of(context).textTheme.headlineLarge),
+                    const Text(
+                      'Добро пожаловать',
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF1e293b),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
                     Text(
-                      dateFormat.format(DateTime.now()),
-                      style: Theme.of(context).textTheme.bodySmall,
+                      formattedDate,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        color: Color(0xFF64748b),
+                      ),
                     ),
                   ],
                 ),
-                IconButton(
-                  icon: const Icon(Icons.settings),
-                  onPressed: () {
-                    // Show settings
-                  },
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFf1f5f9),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.settings_outlined),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const SettingsScreen(),
+                        ),
+                      );
+                    },
+                    color: const Color(0xFF64748b),
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
+            
+            // Статистика
             GlassCard(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Column(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('За месяц', style: Theme.of(context).textTheme.bodySmall),
-                            Text('${stats['monthHours']}ч', style: Theme.of(context).textTheme.headlineMedium),
+                            const Text(
+                              'За месяц',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Color(0xFF64748b),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              '168ч',
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF1e293b),
+                              ),
+                            ),
                           ],
                         ),
-                        Column(
+                      ),
+                      Expanded(
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Заработано', style: Theme.of(context).textTheme.bodySmall),
-                            Text('₽${NumberFormat('#,###', 'ru_RU').format(stats['monthEarnings'])}', style: Theme.of(context).textTheme.headlineMedium),
+                            const Text(
+                              'Заработано',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Color(0xFF64748b),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              '₽85,400',
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF1e293b),
+                              ),
+                            ),
                           ],
                         ),
-                      ],
-                    ),
-                    const Divider(height: 32),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Column(
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    height: 1,
+                    color: const Color(0xFFe2e8f0),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Задач сегодня', style: Theme.of(context).textTheme.bodySmall),
-                            Text(stats['todayTasks'].toString(), style: Theme.of(context).textTheme.headlineMedium!.copyWith(fontSize: 18)),
+                            const Text(
+                              'Задач сегодня',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Color(0xFF64748b),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              '3',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF1e293b),
+                              ),
+                            ),
                           ],
                         ),
-                        Column(
+                      ),
+                      Expanded(
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Смен в месяце', style: Theme.of(context).textTheme.bodySmall),
-                            Text(stats['monthShifts'].toString(), style: Theme.of(context).textTheme.headlineMedium!.copyWith(fontSize: 18)),
+                            const Text(
+                              'Смен в месяце',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Color(0xFF64748b),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              '22',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF1e293b),
+                              ),
+                            ),
                           ],
                         ),
-                      ],
-                    ),
-                  ],
-                ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-            if (undoneTasks.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              Text('Задачи на сегодня', style: Theme.of(context).textTheme.headlineMedium),
-              const SizedBox(height: 8),
-              Column(
-                children: undoneTasks.take(3).map((task) => GestureDetector(
-                  onTap: () {
-                    AddTaskScreen.show(context, taskToEdit: task);
-                  },
-                  child: GlassCard(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12.0),
-                      child: Row(
-                        children: [
-                          Checkbox(
-                            value: task.done,
-                            onChanged: (value) {
-                              appProvider.toggleTaskDone(task.id);
-                            },
-                          ),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(task.title, style: Theme.of(context).textTheme.bodyMedium!.copyWith(fontWeight: FontWeight.w500)),
-                                Text(task.time, style: Theme.of(context).textTheme.bodySmall),
-                              ],
-                            ),
-                          ),
-                        ],
+            const SizedBox(height: 24),
+            
+            // Задачи на сегодня
+            const Text(
+              'Задачи на сегодня',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF1e293b),
+              ),
+            ),
+            const SizedBox(height: 12),
+            _buildTaskItem('Встреча с клиентом', '14:00'),
+            const SizedBox(height: 8),
+            _buildTaskItem('Закончить отчёт', '16:30'),
+            const SizedBox(height: 8),
+            _buildTaskItem('Тренировка', '19:00'),
+            const SizedBox(height: 24),
+            
+            // Прогресс цели
+            GlassCard(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Цель на месяц: ₽150,000',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF334155),
+                        ),
+                      ),
+                      const Text(
+                        '57%',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF64748b),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: LinearProgressIndicator(
+                      value: 0.57,
+                      minHeight: 8,
+                      backgroundColor: const Color(0xFFe2e8f0),
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                        Color(0xFF1e293b),
                       ),
                     ),
                   ),
-                )).toList(),
-              ),
-            ],
-            const SizedBox(height: 16),
-            GlassCard(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('Цель на месяц: ₽150,000', style: Theme.of(context).textTheme.bodyMedium),
-                        Text('57%', style: Theme.of(context).textTheme.bodySmall),
-                      ],
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Осталось: ₽64,600',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Color(0xFF64748b),
                     ),
-                    const SizedBox(height: 8),
-                    LinearProgressIndicator(
-                      value: 0.57,
-                      backgroundColor: Colors.grey[300],
-                      valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).primaryColor),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Осталось: ₽${(150000 - stats['monthEarnings']).toLocaleString()}',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
+            const SizedBox(height: 100), // Отступ для нижней навигации
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildTaskItem(String title, String time) {
+    return GlassCard(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Container(
+            width: 20,
+            height: 20,
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: const Color(0xFF94a3b8),
+                width: 2,
+              ),
+              borderRadius: BorderRadius.circular(6),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF1e293b),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  time,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Color(0xFF64748b),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
