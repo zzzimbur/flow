@@ -16,8 +16,6 @@
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
 		C084EE09EE7C35E92EBCF00A /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FCDC0BF36D95633D57B69991 /* Pods_RunnerTests.framework */; };
 		CFC38ECFE40520236B6949AA /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1981279460E9B34DA31D91DD /* Pods_Runner.framework */; };
-		DFA7F7AA2EDC853A0077B268 /* Google Service Info 2.plist in Resources */ = {isa = PBXBuildFile; fileRef = DFA7F7A92EDC853A0077B268 /* Google Service Info 2.plist */; };
-		DFA7F7AB2EDC853A0077B268 /* Google Service Info 2.plist in Resources */ = {isa = PBXBuildFile; fileRef = DFA7F7A92EDC853A0077B268 /* Google Service Info 2.plist */; };
 		EFA0C0A95993F1852C7788E8 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = A681515B51D1CFB7F3D7696C /* GoogleService-Info.plist */; };
 /* End PBXBuildFile section */
 
@@ -68,7 +66,6 @@
 		97C147021CF9000F007C117D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A681515B51D1CFB7F3D7696C /* GoogleService-Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = "GoogleService-Info.plist"; path = "Runner/GoogleService-Info.plist"; sourceTree = "<group>"; };
 		C61EE5A92D57F195A1A6AF2A /* Pods-RunnerTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.release.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.release.xcconfig"; sourceTree = "<group>"; };
-		DFA7F7A92EDC853A0077B268 /* Google Service Info 2.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Google Service Info 2.plist"; sourceTree = "<group>"; };
 		FCDC0BF36D95633D57B69991 /* Pods_RunnerTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_RunnerTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -120,7 +117,6 @@
 				331C8082294A63A400263BE5 /* RunnerTests */,
 				AB618DEF1934660748A6A8E6 /* Pods */,
 				AA7E7F4FF4F8D82B5AB682AC /* Frameworks */,
-				DFA7F7A92EDC853A0077B268 /* Google Service Info 2.plist */,
 				A681515B51D1CFB7F3D7696C /* GoogleService-Info.plist */,
 			);
 			sourceTree = "<group>";
@@ -259,7 +255,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				DFA7F7AB2EDC853A0077B268 /* Google Service Info 2.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -270,7 +265,6 @@
 				97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */,
 				3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */,
 				97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */,
-				DFA7F7AA2EDC853A0077B268 /* Google Service Info 2.plist in Resources */,
 				97C146FC1CF9000F007C117D /* Main.storyboard in Resources */,
 				EFA0C0A95993F1852C7788E8 /* GoogleService-Info.plist in Resources */,
 			);
@@ -465,7 +459,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 10.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -607,7 +601,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 10.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
@@ -660,7 +654,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 10.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;

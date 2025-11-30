@@ -1,27 +1,28 @@
 name: flow
 description: "Приложение для управления временем и финансами"
-publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+publish_to: 'none'
 version: 1.0.0+1
 
 environment:
   sdk: ^3.9.2
 
 dependencies:
-     fl_chart: ^1.1.1
-     flutter:
-       sdk: flutter
-     flutter_local_notifications: ^19.5.0
-     
-     intl: ^0.19.0
-     # UI и State Management
-     cupertino_icons: ^1.0.6
-     provider: ^6.1.1
+  fl_chart: ^1.1.1
+  flutter:
+    sdk: flutter
+  flutter_local_notifications: ^19.5.0
+  intl: ^0.19.0
 
-     # Firebase
-     firebase_core: ^2.32.0
-     firebase_auth: ^4.16.0
-     cloud_firestore: ^4.14.0
-     firebase_storage: ^11.6.0
+  # UI и State Management
+  cupertino_icons: ^1.0.6
+  provider: ^6.1.1
+
+  # Firebase
+  firebase_core: ^4.2.1
+  firebase_auth: ^6.1.2
+  cloud_firestore: ^6.1.0
+  firebase_storage: ^13.0.4
+
 
 dev_dependencies:
   flutter_launcher_icons: ^0.13.1
