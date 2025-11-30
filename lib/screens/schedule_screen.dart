@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../widgets/glass_card.dart';
+import '../providers/settings_provider.dart';
 import 'settings_screen.dart';
 
 class ScheduleScreen extends StatelessWidget {
@@ -7,6 +9,8 @@ class ScheduleScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final settings = Provider.of<SettingsProvider>(context);
+    final isDark = settings.isDarkMode;
     return SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -67,37 +71,37 @@ class ScheduleScreen extends StatelessWidget {
                       ),
                       TextButton(
                         onPressed: () {},
-                        child: const Text(
+                        child: Text(
                           'Сегодня',
                           style: TextStyle(
                             fontSize: 14,
-                            color: Color(0xFF64748b),
+                            color: isDark ? const Color(0xFF8b7ff5) : const Color(0xFF64748b),
                           ),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 16),
-                  _buildCalendar(),
+                  _buildCalendar(isDark),
                 ],
               ),
             ),
             const SizedBox(height: 24),
             
             // Смены сегодня
-            const Text(
+            Text(
               'Смены сегодня',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
-                color: Color(0xFF1e293b),
+                color: isDark ? Colors.white : const Color(0xFF1e293b),
               ),
             ),
             const SizedBox(height: 12),
             
-            _buildShiftCard('Работа в офисе', 8, 3200),
+            _buildShiftCard('Работа в офисе', 8, 3200, isDark),
             const SizedBox(height: 8),
-            _buildShiftCard('Фриланс проект', 4, 2500),
+            _buildShiftCard('Фриланс проект', 4, 2500, isDark),
             
             const SizedBox(height: 100), // Отступ для навигации
           ],
@@ -106,7 +110,7 @@ class ScheduleScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildCalendar() {
+  Widget _buildCalendar(bool isDark) {
     final weekDays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
     final workDays = [1, 3, 5, 8, 10, 12, 15, 17, 19, 22, 24, 26, 29];
     final today = 29;
@@ -121,9 +125,9 @@ class ScheduleScreen extends StatelessWidget {
             child: Center(
               child: Text(
                 day,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12,
-                  color: Color(0xFF64748b),
+                  color: isDark ? const Color(0xFF94a3b8) : const Color(0xFF64748b),
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -153,9 +157,9 @@ class ScheduleScreen extends StatelessWidget {
                 color: !isValid
                     ? Colors.transparent
                     : isToday
-                    ? const Color(0xFF1e293b)
+                    ? (isDark ? const Color(0xFF8b7ff5) : const Color(0xFF1e293b))
                     : hasShift
-                    ? const Color(0xFFf1f5f9)
+                    ? (isDark ? const Color(0xFF334155) : const Color(0xFFf1f5f9))
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(8),
               ),
@@ -169,7 +173,7 @@ class ScheduleScreen extends StatelessWidget {
                         ? Colors.transparent
                         : isToday
                         ? Colors.white
-                        : const Color(0xFF1e293b),
+                        : (isDark ? const Color(0xFFe2e8f0) : const Color(0xFF1e293b)),
                   ),
                 ),
               ),
@@ -180,21 +184,24 @@ class ScheduleScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildShiftCard(String title, int hours, int earnings) {
+  Widget _buildShiftCard(String title, int hours, int earnings, bool isDark) {
     return GlassCard(
       padding: const EdgeInsets.all(16),
+      color: isDark 
+          ? const Color(0xFF1e293b).withOpacity(0.5)
+          : Colors.white.withOpacity(0.7),
       child: Row(
         children: [
           Container(
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: const Color(0xFFf1f5f9),
+              color: isDark ? const Color(0xFF334155) : const Color(0xFFf1f5f9),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.work_outline,
-              color: Color(0xFF64748b),
+              color: isDark ? const Color(0xFF8b7ff5) : const Color(0xFF64748b),
             ),
           ),
           const SizedBox(width: 12),
@@ -204,18 +211,18 @@ class ScheduleScreen extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF1e293b),
+                    color: isDark ? Colors.white : const Color(0xFF1e293b),
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   '${hours}ч',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14,
-                    color: Color(0xFF64748b),
+                    color: isDark ? const Color(0xFF94a3b8) : const Color(0xFF64748b),
                   ),
                 ),
               ],
@@ -223,10 +230,10 @@ class ScheduleScreen extends StatelessWidget {
           ),
           Text(
             '₽${earnings.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
-              color: Color(0xFF1e293b),
+              color: isDark ? Colors.white : const Color(0xFF1e293b),
             ),
           ),
         ],

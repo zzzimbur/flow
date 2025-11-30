@@ -1,12 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../widgets/glass_card.dart';
+import '../providers/settings_provider.dart';
 import 'settings_screen.dart';
+import 'package:provider/provider.dart';
+import '../providers/settings_provider.dart';
 
 class FinanceScreen extends StatelessWidget {
   const FinanceScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final settings = Provider.of<SettingsProvider>(context);
+    final isDark = settings.isDarkMode;
+
     return SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -17,25 +24,32 @@ class FinanceScreen extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
+                Text(
                   'Финансы',
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF1e293b),
+                    color: isDark ? Colors.white : const Color(0xFF1e293b),
                   ),
                 ),
                 Container(
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFf1f5f9),
+                    color: isDark ? const Color(0xFF1e293b) : const Color(0xFFf1f5f9),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: IconButton(
                     icon: const Icon(Icons.settings_outlined),
-                    onPressed: () {},
-                    color: const Color(0xFF64748b),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const SettingsScreen(),
+                        ),
+                      );
+                    },
+                    color: isDark ? const Color(0xFF8b7ff5) : const Color(0xFF64748b),
                   ),
                 ),
               ],
@@ -45,23 +59,26 @@ class FinanceScreen extends StatelessWidget {
             // Баланс
             GlassCard(
               padding: const EdgeInsets.all(24),
+              color: isDark 
+                  ? const Color(0xFF1e293b).withOpacity(0.5)
+                  : Colors.white.withOpacity(0.7),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Баланс',
                     style: TextStyle(
                       fontSize: 14,
-                      color: Color(0xFF64748b),
+                      color: isDark ? const Color(0xFF94a3b8) : const Color(0xFF64748b),
                     ),
                   ),
                   const SizedBox(height: 8),
-                  const Text(
+                  Text(
                     '₽85,400',
                     style: TextStyle(
                       fontSize: 36,
                       fontWeight: FontWeight.w600,
-                      color: Color(0xFF1e293b),
+                      color: isDark ? Colors.white : const Color(0xFF1e293b),
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -71,7 +88,7 @@ class FinanceScreen extends StatelessWidget {
                         child: Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFecfdf5),
+                            color: const Color(0xFFecfdf5).withOpacity(isDark ? 0.2 : 1),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Column(
@@ -79,30 +96,30 @@ class FinanceScreen extends StatelessWidget {
                             children: [
                               Row(
                                 children: [
-                                  Icon(
+                                  const Icon(
                                     Icons.trending_up,
                                     size: 16,
-                                    color: const Color(0xFF059669),
+                                    color: Color(0xFF059669),
                                   ),
                                   const SizedBox(width: 4),
-                                  const Text(
-                                    'Доходы',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: Color(0xFF047857),
-                                    ),
+                                  Text(
+                                  'Доходы',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: isDark ? const Color(0xFF10b981) : const Color(0xFF047857), // Ярче для темной темы
                                   ),
+                                ),
                                 ],
                               ),
                               const SizedBox(height: 8),
-                              const Text(
-                                '+₽92,300',
-                                style: TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF065f46),
-                                ),
+                              Text(
+                              '+₽92,300',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w600,
+                                color: isDark ? const Color(0xFF34d399) : const Color(0xFF065f46), // Ярче для темной темы
                               ),
+                            ),
                             ],
                           ),
                         ),
@@ -112,7 +129,7 @@ class FinanceScreen extends StatelessWidget {
                         child: Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFfef2f2),
+                            color: const Color(0xFFfef2f2).withOpacity(isDark ? 0.2 : 1),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Column(
@@ -120,28 +137,28 @@ class FinanceScreen extends StatelessWidget {
                             children: [
                               Row(
                                 children: [
-                                  Icon(
+                                  const Icon(
                                     Icons.trending_down,
                                     size: 16,
-                                    color: const Color(0xFFdc2626),
+                                    color: Color(0xFFdc2626),
                                   ),
                                   const SizedBox(width: 4),
-                                  const Text(
+                                  Text(
                                     'Расходы',
                                     style: TextStyle(
                                       fontSize: 14,
-                                      color: Color(0xFFb91c1c),
+                                      color: isDark ? const Color(0xFFf87171) : const Color(0xFFb91c1c),
                                     ),
                                   ),
                                 ],
                               ),
                               const SizedBox(height: 8),
-                              const Text(
+                              Text(
                                 '-₽6,900',
                                 style: TextStyle(
                                   fontSize: 20,
                                   fontWeight: FontWeight.w600,
-                                  color: Color(0xFF991b1b),
+                                  color: isDark ? const Color(0xFFfca5a5) : const Color(0xFF991b1b),
                                 ),
                               ),
                             ],
@@ -156,12 +173,12 @@ class FinanceScreen extends StatelessWidget {
             const SizedBox(height: 24),
             
             // По категориям
-            const Text(
+            Text(
               'По категориям',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
-                color: Color(0xFF1e293b),
+                color: isDark ? Colors.white : const Color(0xFF1e293b),
               ),
             ),
             const SizedBox(height: 12),
@@ -174,6 +191,7 @@ class FinanceScreen extends StatelessWidget {
                 Transaction('Зарплата', 45000, 'Сегодня'),
                 Transaction('Фриланс', 15000, '2 дня назад'),
               ],
+              isDark,
             ),
             const SizedBox(height: 12),
             
@@ -184,6 +202,7 @@ class FinanceScreen extends StatelessWidget {
               [
                 Transaction('Продукты', -2300, 'Вчера'),
               ],
+              isDark,
             ),
             const SizedBox(height: 12),
             
@@ -194,6 +213,7 @@ class FinanceScreen extends StatelessWidget {
               [
                 Transaction('Кафе', -850, '3 дня назад'),
               ],
+              isDark,
             ),
             
             const SizedBox(height: 100), // Отступ для навигации
@@ -208,9 +228,13 @@ class FinanceScreen extends StatelessWidget {
     int total,
     bool isIncome,
     List<Transaction> transactions,
+    bool isDark,
   ) {
     return GlassCard(
       padding: const EdgeInsets.all(16),
+      color: isDark 
+          ? const Color(0xFF1e293b).withOpacity(0.5)
+          : Colors.white.withOpacity(0.7),
       child: Column(
         children: [
           Row(
@@ -218,10 +242,10 @@ class FinanceScreen extends StatelessWidget {
             children: [
               Text(
                 category,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFF1e293b),
+                  color: isDark ? Colors.white : const Color(0xFF1e293b),
                 ),
               ),
               Text(
@@ -245,16 +269,16 @@ class FinanceScreen extends StatelessWidget {
                   children: [
                     Text(
                       tx.title,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 14,
-                        color: Color(0xFF334155),
+                        color: isDark ? const Color(0xFFe2e8f0) : const Color(0xFF334155),
                       ),
                     ),
                     Text(
                       tx.date,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
-                        color: Color(0xFF94a3b8),
+                        color: isDark ? const Color(0xFF64748b) : const Color(0xFF94a3b8),
                       ),
                     ),
                   ],

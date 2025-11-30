@@ -1,7 +1,9 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'dart:ui';
 import '../widgets/glass_card.dart';
 import '../widgets/custom_bottom_nav.dart';
+import '../providers/settings_provider.dart';
 import 'home_screen.dart';
 import 'finance_screen.dart';
 import 'tasks_screen.dart';
@@ -27,22 +29,24 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final settings = Provider.of<SettingsProvider>(context);
+    final isDark = settings.isDarkMode;
+
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              Color(0xFFf8fafc),
-              Color(0xFFe2e8f0),
-            ],
+            colors: isDark
+                ? [const Color(0xFF0f172a), const Color(0xFF1e293b)]
+                : [const Color(0xFFf8fafc), const Color(0xFFe2e8f0)],
           ),
         ),
         child: Stack(
           children: [
             _screens[_currentIndex],
-            if (_showAddMenu) _buildAddMenu(),
+            if (_showAddMenu) _buildAddMenu(isDark),
           ],
         ),
       ),
@@ -62,7 +66,7 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  Widget _buildAddMenu() {
+  Widget _buildAddMenu(bool isDark) {
     return GestureDetector(
       onTap: () {
         setState(() {
@@ -70,9 +74,9 @@ class _MainScreenState extends State<MainScreen> {
         });
       },
       child: Container(
-        color: Colors.black.withOpacity(0.2),
+        color: Colors.black.withOpacity(0.3),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
           child: Align(
             alignment: Alignment.bottomCenter,
             child: Padding(
@@ -81,18 +85,21 @@ class _MainScreenState extends State<MainScreen> {
                 onTap: () {},
                 child: GlassCard(
                   padding: const EdgeInsets.all(24),
+                  color: isDark 
+                      ? const Color(0xFF1e293b).withOpacity(0.8)
+                      : Colors.white.withOpacity(0.9),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
+                          Text(
                             'Добавить',
                             style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.w600,
-                              color: Color(0xFF1e293b),
+                              color: isDark ? Colors.white : const Color(0xFF1e293b),
                             ),
                           ),
                           IconButton(
@@ -103,7 +110,12 @@ class _MainScreenState extends State<MainScreen> {
                             },
                             icon: const Icon(Icons.close),
                             style: IconButton.styleFrom(
-                              backgroundColor: const Color(0xFFf1f5f9),
+                              backgroundColor: isDark 
+                                  ? const Color(0xFF0f172a) 
+                                  : const Color(0xFFf1f5f9),
+                              foregroundColor: isDark 
+                                  ? Colors.white 
+                                  : const Color(0xFF64748b),
                             ),
                           ),
                         ],
@@ -114,6 +126,7 @@ class _MainScreenState extends State<MainScreen> {
                         'Создать новую задачу',
                         Icons.check_circle_outline,
                         () {},
+                        isDark,
                       ),
                       const SizedBox(height: 8),
                       _buildMenuItem(
@@ -121,6 +134,7 @@ class _MainScreenState extends State<MainScreen> {
                         'Доход или расход',
                         Icons.account_balance_wallet_outlined,
                         () {},
+                        isDark,
                       ),
                       const SizedBox(height: 8),
                       _buildMenuItem(
@@ -128,6 +142,7 @@ class _MainScreenState extends State<MainScreen> {
                         'Добавить в график',
                         Icons.calendar_today_outlined,
                         () {},
+                        isDark,
                       ),
                     ],
                   ),
@@ -145,6 +160,7 @@ class _MainScreenState extends State<MainScreen> {
     String subtitle,
     IconData icon,
     VoidCallback onTap,
+    bool isDark,
   ) {
     return InkWell(
       onTap: onTap,
@@ -152,7 +168,9 @@ class _MainScreenState extends State<MainScreen> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: const Color(0xFFf8fafc),
+          color: isDark 
+              ? const Color(0xFF0f172a).withOpacity(0.5) 
+              : const Color(0xFFf8fafc),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
@@ -161,7 +179,9 @@ class _MainScreenState extends State<MainScreen> {
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: const Color(0xFF1e293b),
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF6c5ce7), Color(0xFF8b7ff5)],
+                ),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(icon, color: Colors.white),
@@ -173,25 +193,27 @@ class _MainScreenState extends State<MainScreen> {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: Color(0xFF1e293b),
+                      color: isDark ? Colors.white : const Color(0xFF1e293b),
                     ),
                   ),
                   Text(
                     subtitle,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
-                      color: Color(0xFF64748b),
+                      color: isDark 
+                          ? const Color(0xFF94a3b8) 
+                          : const Color(0xFF64748b),
                     ),
                   ),
                 ],
               ),
             ),
-            const Icon(
+            Icon(
               Icons.chevron_right,
-              color: Color(0xFF94a3b8),
+              color: isDark ? const Color(0xFF94a3b8) : const Color(0xFF94a3b8),
             ),
           ],
         ),
