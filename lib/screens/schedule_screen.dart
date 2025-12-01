@@ -11,6 +11,7 @@ class ScheduleScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final settings = Provider.of<SettingsProvider>(context);
     final isDark = settings.isDarkMode;
+
     return SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -21,19 +22,19 @@ class ScheduleScreen extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
+                Text(
                   'График',
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF1e293b),
+                    color: isDark ? Colors.white : const Color(0xFF1e293b),
                   ),
                 ),
                 Container(
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFf1f5f9),
+                    color: isDark ? const Color(0xFF1e293b) : const Color(0xFFf1f5f9),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: IconButton(
@@ -46,7 +47,7 @@ class ScheduleScreen extends StatelessWidget {
                         ),
                       );
                     },
-                    color: const Color(0xFF64748b),
+                    color: isDark ? const Color(0xFF8b7ff5) : const Color(0xFF64748b),
                   ),
                 ),
               ],
@@ -56,17 +57,20 @@ class ScheduleScreen extends StatelessWidget {
             // Календарь
             GlassCard(
               padding: const EdgeInsets.all(20),
+              color: isDark 
+                  ? const Color(0xFF1e293b).withOpacity(0.5)
+                  : Colors.white.withOpacity(0.7),
               child: Column(
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
+                      Text(
                         'Ноябрь 2024',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
-                          color: Color(0xFF1e293b),
+                          color: isDark ? Colors.white : const Color(0xFF1e293b),
                         ),
                       ),
                       TextButton(

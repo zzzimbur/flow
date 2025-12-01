@@ -8,6 +8,9 @@ import 'home_screen.dart';
 import 'finance_screen.dart';
 import 'tasks_screen.dart';
 import 'schedule_screen.dart';
+import 'add_task_screen.dart';
+import 'add_transaction_screen.dart';
+import 'add_shift_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -121,27 +124,48 @@ class _MainScreenState extends State<MainScreen> {
                         ],
                       ),
                       const SizedBox(height: 16),
-                      _buildMenuItem(
-                        'Задачу',
-                        'Создать новую задачу',
-                        Icons.check_circle_outline,
-                        () {},
-                        isDark,
-                      ),
+                        _buildMenuItem(
+                          'Задачу',
+                          'Создать новую задачу',
+                          Icons.check_circle_outline,
+                          () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => AddTaskScreen(),
+                              ),
+                            );
+                          },
+                          isDark,
+                        ),
                       const SizedBox(height: 8),
-                      _buildMenuItem(
-                        'Операцию',
-                        'Доход или расход',
-                        Icons.account_balance_wallet_outlined,
-                        () {},
-                        isDark,
-                      ),
+                        _buildMenuItem(
+                          'Операцию',
+                          'Доход или расход',
+                          Icons.account_balance_wallet_outlined,
+                          () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => AddTransactionScreen(),
+                              ),
+                            );
+                          },
+                          isDark,
+                        ),
                       const SizedBox(height: 8),
                       _buildMenuItem(
                         'Смену',
                         'Добавить в график',
                         Icons.calendar_today_outlined,
-                        () {},
+                        () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => AddShiftScreen(),
+                            ),
+                          );
+                        },
                         isDark,
                       ),
                     ],
