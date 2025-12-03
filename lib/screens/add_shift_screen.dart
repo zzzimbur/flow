@@ -535,7 +535,7 @@ class _AddShiftScreenState extends State<AddShiftScreen> {
 
   void _saveShift() {
     // TODO: Сохранить смену в Firebase
-    Navigator.pop(context);
+    Navigator.of(context).pop();
   }
 
   @override

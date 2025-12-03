@@ -13,15 +13,23 @@ import 'add_transaction_screen.dart';
 import 'add_shift_screen.dart';
 
 class MainScreen extends StatefulWidget {
-  const MainScreen({super.key});
+  final int initialTab;
+  
+  const MainScreen({super.key, this.initialTab = 0});
 
   @override
   State<MainScreen> createState() => _MainScreenState();
 }
 
 class _MainScreenState extends State<MainScreen> {
-  int _currentIndex = 0;
+  late int _currentIndex;
   bool _showAddMenu = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialTab;
+  }
 
   final List<Widget> _screens = [
     const HomeScreen(),
@@ -124,48 +132,27 @@ class _MainScreenState extends State<MainScreen> {
                         ],
                       ),
                       const SizedBox(height: 16),
-                        _buildMenuItem(
-                          'Задачу',
-                          'Создать новую задачу',
-                          Icons.check_circle_outline,
-                          () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => AddTaskScreen(),
-                              ),
-                            );
-                          },
-                          isDark,
-                        ),
+                      _buildMenuItem(
+                        'Задачу',
+                        'Создать новую задачу',
+                        Icons.check_circle_outline,
+                        () {},
+                        isDark,
+                      ),
                       const SizedBox(height: 8),
-                        _buildMenuItem(
-                          'Операцию',
-                          'Доход или расход',
-                          Icons.account_balance_wallet_outlined,
-                          () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => AddTransactionScreen(),
-                              ),
-                            );
-                          },
-                          isDark,
-                        ),
+                      _buildMenuItem(
+                        'Операцию',
+                        'Доход или расход',
+                        Icons.account_balance_wallet_outlined,
+                        () {},
+                        isDark,
+                      ),
                       const SizedBox(height: 8),
                       _buildMenuItem(
                         'Смену',
                         'Добавить в график',
                         Icons.calendar_today_outlined,
-                        () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => AddShiftScreen(),
-                            ),
-                          );
-                        },
+                        () {},
                         isDark,
                       ),
                     ],
@@ -187,7 +174,10 @@ class _MainScreenState extends State<MainScreen> {
     bool isDark,
   ) {
     return InkWell(
-      onTap: onTap,
+      onTap: () {
+        print('Нажата кнопка: $title'); // Для отладки
+        onTap();
+      },
       borderRadius: BorderRadius.circular(12),
       child: Container(
         padding: const EdgeInsets.all(16),

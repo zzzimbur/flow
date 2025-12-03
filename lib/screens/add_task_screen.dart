@@ -456,7 +456,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
       child: GestureDetector(
         onTap: () => setState(() => _priority = value),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
           decoration: BoxDecoration(
             color: isSelected ? color : (isDark ? const Color(0xFF1e293b).withOpacity(0.5) : Colors.white.withOpacity(0.7)),
             borderRadius: BorderRadius.circular(8),
@@ -465,21 +465,22 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
               width: isSelected ? 2 : 1,
             ),
           ),
-          child: Row(
+          child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (isSelected)
-                Icon(Icons.flag, color: Colors.white, size: 16),
-              if (isSelected) const SizedBox(width: 4),
+                Icon(Icons.flag, color: Colors.white, size: 14),
+              if (isSelected) const SizedBox(height: 2),
               Text(
                 label,
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: 10,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                   color: isSelected ? Colors.white : (isDark ? Colors.white : const Color(0xFF1e293b)),
                 ),
-                maxLines: 1,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
               ),
             ],
           ),
@@ -627,7 +628,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
 
   void _saveTask() {
     // TODO: Сохранить задачу в Firebase
-    Navigator.pop(context);
+    Navigator.of(context).pop();
   }
 
   @override
