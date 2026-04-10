@@ -11,6 +11,7 @@ import 'calendar_screen.dart';
 import 'add_task_screen.dart';
 import 'add_transaction_screen.dart';
 import 'add_shift_screen.dart';
+import 'accountant_report_screen.dart';
 
 class MainScreen extends StatefulWidget {
   final int initialTab;
@@ -30,6 +31,7 @@ class _MainScreenState extends State<MainScreen> {
   Key _financeKey = UniqueKey();
   Key _calendarKey = UniqueKey();
   Key _settingsKey = UniqueKey();
+  Key _accountantKey = UniqueKey();
 
   @override
   void initState() {
@@ -37,12 +39,17 @@ class _MainScreenState extends State<MainScreen> {
     _currentIndex = widget.initialTab;
   }
 
-  List<Widget> get _screens => [
-    HomeScreen(key: _homeKey),
-    FinanceScreen(key: _financeKey),
-    CalendarScreen(key: _calendarKey),
-    SettingsScreen(key: _settingsKey),
-  ];
+  // index 4 = AccountantReportScreen (only shown when isAccountant)
+  Widget _screenForIndex(int index) {
+    switch (index) {
+      case 0: return HomeScreen(key: _homeKey);
+      case 1: return FinanceScreen(key: _financeKey);
+      case 2: return CalendarScreen(key: _calendarKey);
+      case 3: return SettingsScreen(key: _settingsKey);
+      case 4: return AccountantReportScreen(key: _accountantKey);
+      default: return HomeScreen(key: _homeKey);
+    }
+  }
 
   // Метод для обновления всех экранов
   void _refreshAllScreens() {
@@ -51,6 +58,7 @@ class _MainScreenState extends State<MainScreen> {
       _financeKey = UniqueKey();
       _calendarKey = UniqueKey();
       _settingsKey = UniqueKey();
+      _accountantKey = UniqueKey();
     });
   }
 
@@ -70,6 +78,9 @@ class _MainScreenState extends State<MainScreen> {
         case 3:
           _settingsKey = UniqueKey();
           break;
+        case 4:
+          _accountantKey = UniqueKey();
+          break;
       }
     });
   }
@@ -78,6 +89,7 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     final settings = Provider.of<SettingsProvider>(context);
     final isDark = settings.isDarkMode;
+    final isAccountant = settings.isAccountant;
 
     return Scaffold(
       body: Container(
@@ -92,13 +104,14 @@ class _MainScreenState extends State<MainScreen> {
         ),
         child: Stack(
           children: [
-            _screens[_currentIndex],
+            _screenForIndex(_currentIndex),
             if (_showAddMenu) _buildAddMenu(isDark),
           ],
         ),
       ),
       bottomNavigationBar: CustomBottomNav(
         currentIndex: _currentIndex,
+        showAccountantTab: isAccountant,
         onTabChange: (index) {
           setState(() {
             _currentIndex = index;

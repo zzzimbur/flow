@@ -14,12 +14,20 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:ui';
 import '../widgets/ad_banner.dart';
 import '../screens/payment_screen.dart';
+import '../services/calendar_service.dart';
+import '../services/firestore_service.dart';
+import '../models/shift_model.dart';
+import '../models/task_model.dart';
 
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
- 
 
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final settings = Provider.of<SettingsProvider>(context);
@@ -64,7 +72,7 @@ final subscriptionProvider = Provider.of<SubscriptionProvider>(context);
                         // Обновляем settings если данные отличаются
                         if (displayName != settings.userName && displayName.isNotEmpty) {
                           WidgetsBinding.instance.addPostFrameCallback((_) {
-                            settings.setUserName(displayName, displayName);
+                            settings.setUserName(displayName);
                           });
                         }
                         if (email != settings.userEmail && email.isNotEmpty) {
@@ -156,7 +164,7 @@ final subscriptionProvider = Provider.of<SubscriptionProvider>(context);
                         context,
                         'Изменить имя',
                         settings.userName,
-                        (value) => settings.setUserName(value, settings.userName),
+                        (value) => settings.setUserName(value),
                         isDark,
                         accentColor,
                       ),
@@ -279,7 +287,37 @@ final subscriptionProvider = Provider.of<SubscriptionProvider>(context);
                       },
                     ),
                     const SizedBox(height: 24),
-                    
+
+                    // Секция "Экспорт"
+                    SectionHeader(
+                      title: 'Экспорт данных',
+                      icon: Icons.ios_share,
+                      isDark: isDark,
+                    ),
+                    const SizedBox(height: 12),
+
+                    _buildActionItem(
+                      context,
+                      'Экспорт смен в календарь',
+                      'Добавить все смены в системный календарь',
+                      Icons.event_repeat,
+                      isDark,
+                      accentColor,
+                      () => _exportShiftsToCalendar(context, isDark, accentColor),
+                    ),
+                    const SizedBox(height: 8),
+
+                    _buildActionItem(
+                      context,
+                      'Экспорт задач в календарь',
+                      'Добавить все задачи в системный календарь',
+                      Icons.task_alt,
+                      isDark,
+                      accentColor,
+                      () => _exportTasksToCalendar(context, isDark, accentColor),
+                    ),
+                    const SizedBox(height: 24),
+
                     // Секция "О приложении"
                     SectionHeader(
                       title: 'О приложении',
@@ -934,7 +972,7 @@ final subscriptionProvider = Provider.of<SubscriptionProvider>(context);
                   ? Icon(Icons.check, color: accentColor)
                   : null,
               onTap: () {
-                settings.setCurrency(currency, settings.currency);
+                settings.setCurrency(currency);
                 Navigator.pop(context);
               },
             );
@@ -1382,7 +1420,145 @@ final subscriptionProvider = Provider.of<SubscriptionProvider>(context);
     if (days % 10 == 1 && days % 100 != 11) return 'день';
     if ([2, 3, 4].contains(days % 10) && ![12, 13, 14].contains(days % 100)) return 'дня';
     return 'дней';
-  }  
+  }
+
+  // ─── Экспорт смен в системный календарь ──────────────────────────────────
+  Future<void> _exportShiftsToCalendar(
+    BuildContext context,
+    bool isDark,
+    Color accentColor,
+  ) async {
+    final authProv = Provider.of<auth.AuthProvider>(context, listen: false);
+    final userId = authProv.userId;
+    if (userId.isEmpty) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final firestoreService = FirestoreService();
+      final calendarService = CalendarService();
+      final now = DateTime.now();
+      final shiftsRaw = await firestoreService.getShifts(
+        userId,
+        DateTime(now.year, now.month - 3),
+        DateTime(now.year, now.month + 1, 28),
+      );
+      final shifts = shiftsRaw
+          .map((data) => ShiftModel.fromMap(data['id'] ?? '', data))
+          .toList();
+
+      if (context.mounted) Navigator.pop(context);
+
+      if (shifts.isEmpty) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: const Text('Нет смен для экспорта'),
+            backgroundColor: accentColor,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(16),
+          ));
+        }
+        return;
+      }
+
+      await calendarService.exportAllShifts(shifts);
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('✅ Экспортировано смен: ${shifts.length}'),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          margin: const EdgeInsets.all(16),
+        ));
+      }
+    } catch (e) {
+      if (context.mounted) Navigator.pop(context);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Ошибка экспорта: $e'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          margin: const EdgeInsets.all(16),
+        ));
+      }
+    }
+  }
+
+  // ─── Экспорт задач в системный календарь ─────────────────────────────────
+  Future<void> _exportTasksToCalendar(
+    BuildContext context,
+    bool isDark,
+    Color accentColor,
+  ) async {
+    final authProv = Provider.of<auth.AuthProvider>(context, listen: false);
+    final userId = authProv.userId;
+    if (userId.isEmpty) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final firestoreService = FirestoreService();
+      final calendarService = CalendarService();
+      final now = DateTime.now();
+      final tasksRaw = await firestoreService.getTasks(
+        userId,
+        DateTime(now.year, now.month - 1),
+        DateTime(now.year, now.month + 2, 28),
+      );
+      final tasks = tasksRaw
+          .map((data) => TaskModel.fromMap(data['id'] ?? '', data))
+          .toList();
+
+      if (context.mounted) Navigator.pop(context);
+
+      if (tasks.isEmpty) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: const Text('Нет задач для экспорта'),
+            backgroundColor: accentColor,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(16),
+          ));
+        }
+        return;
+      }
+
+      await calendarService.exportAllTasks(tasks);
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('✅ Экспортировано задач: ${tasks.length}'),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          margin: const EdgeInsets.all(16),
+        ));
+      }
+    } catch (e) {
+      if (context.mounted) Navigator.pop(context);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Ошибка экспорта: $e'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          margin: const EdgeInsets.all(16),
+        ));
+      }
+    }
+  }
 }
 
 void _openLegalDocument(BuildContext context, String type) async {

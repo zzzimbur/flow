@@ -8,12 +8,14 @@ class CustomBottomNav extends StatelessWidget {
   final int currentIndex;
   final Function(int) onTabChange;
   final VoidCallback onAddPressed;
+  final bool showAccountantTab;
 
   const CustomBottomNav({
     super.key,
     required this.currentIndex,
     required this.onTabChange,
     required this.onAddPressed,
+    this.showAccountantTab = false,
   });
 
   @override
@@ -74,12 +76,27 @@ class CustomBottomNav extends StatelessWidget {
                   index: 2,
                   isDark: isDark,
                 ),
-                _buildNavItem(
-                  icon: Icons.settings_rounded,
-                  label: 'Настройки',
-                  index: 3,
-                  isDark: isDark,
-                ),
+                if (showAccountantTab)
+                  _buildNavItem(
+                    icon: Icons.summarize,
+                    label: 'Табель',
+                    index: 4,
+                    isDark: isDark,
+                  )
+                else
+                  _buildNavItem(
+                    icon: Icons.settings_rounded,
+                    label: 'Настройки',
+                    index: 3,
+                    isDark: isDark,
+                  ),
+                if (showAccountantTab)
+                  _buildNavItem(
+                    icon: Icons.settings_rounded,
+                    label: 'Настройки',
+                    index: 3,
+                    isDark: isDark,
+                  ),
               ],
             ),
           ),

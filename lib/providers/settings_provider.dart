@@ -18,9 +18,10 @@ class ColorTheme {
 
 class SettingsProvider extends ChangeNotifier {
   // Пользовательские данные
-  String _userName = 'Александр';
-  String _userEmail = 'alex@example.com';
+  String _userName = '';
+  String _userEmail = '';
   String _userPassword = '********';
+  String _userId = '';
   
   // Настройки приложения
   ThemeMode _themeMode = ThemeMode.light;
@@ -39,7 +40,11 @@ class SettingsProvider extends ChangeNotifier {
   String get selectedThemeId => _selectedThemeId;
   bool get isLoaded => _isLoaded; // Геттер для проверки загрузки
   bool get isFirstLaunch => _isFirstLaunch;
-  
+
+  String _userRole = 'employee'; // 'employee' или 'accountant'
+  String get userRole => _userRole;
+  bool get isAccountant => _userRole == 'accountant';
+
   // Доступные темы
   static const List<ColorTheme> _availableThemes = [
     ColorTheme(
@@ -109,9 +114,16 @@ class SettingsProvider extends ChangeNotifier {
   List<ColorTheme> get availableThemes => _availableThemes;
   
   // Сеттеры с уведомлением слушателей
-  void setUserName(String name, String s) {
+  void setUserName(String name) {
     _userName = name;
     notifyListeners();
+    // Сохраняем имя в Firestore при каждом изменении
+    if (_userId.isNotEmpty) {
+      FirebaseFirestore.instance
+          .collection('users')
+          .doc(_userId)
+          .set({'name': name}, SetOptions(merge: true));
+    }
   }
   
   void setUserEmail(String email) {
@@ -155,7 +167,7 @@ class SettingsProvider extends ChangeNotifier {
   }
  
   
-  void setCurrency(String curr, String s) {
+  void setCurrency(String curr) {
     _currency = curr;
     notifyListeners();
   }
@@ -166,32 +178,48 @@ class SettingsProvider extends ChangeNotifier {
   }
   
   // Инициализация настроек
-  Future<void> initialize(String userId) async {
+  Future<void> initialize(String userId, {String? firebaseDisplayName}) async {
+    _userId = userId;
     if (userId.isEmpty) {
       _isLoaded = true;
       notifyListeners();
       return;
     }
-    
+
     try {
       // Загружаем данные пользователя из Firestore
       final doc = await FirebaseFirestore.instance
           .collection('users')
           .doc(userId)
           .get();
-      
+
       if (doc.exists) {
         final data = doc.data();
-        
+
+        // Firebase Auth displayName имеет приоритет над Firestore
+        // (пользователь мог сменить имя через Auth, но Firestore не обновился)
+        final firestoreName = data?['name'] as String?;
+        if (firebaseDisplayName != null && firebaseDisplayName.isNotEmpty &&
+            firebaseDisplayName != firestoreName) {
+          _userName = firebaseDisplayName;
+          // Синхронизируем Firestore с Firebase Auth
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(userId)
+              .set({'name': firebaseDisplayName}, SetOptions(merge: true));
+        } else {
+          _userName = firestoreName ?? firebaseDisplayName ?? '';
+        }
+
         // Загружаем настройки
-        _userName = data?['name'] ?? _userName;
         _userEmail = data?['email'] ?? _userEmail;
         _selectedThemeId = data?['themeId'] ?? 'purple';
         _currency = data?['currency'] ?? '₽ Рубль';
         
         // Проверяем, завершен ли онбординг
         _isFirstLaunch = data?['onboardingCompleted'] != true;
-        
+        _userRole = data?['role'] ?? 'employee';
+
         // Загружаем тему
         final isDark = data?['isDarkMode'] ?? false;
         _themeMode = isDark ? ThemeMode.dark : ThemeMode.light;

@@ -384,20 +384,25 @@ class FirestoreService {
           .where('date', isLessThanOrEqualTo: Timestamp.fromDate(endDate))
           .get();
       
-      int totalHours = 0;
+      double totalHoursDouble = 0;
       int totalShifts = shiftsSnapshot.docs.length;
-      
+
       for (var doc in shiftsSnapshot.docs) {
         Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-        totalHours += (data['hours'] ?? 0) as int;
+        try {
+          final startTime = (data['startTime'] as Timestamp).toDate();
+          final endTime = (data['endTime'] as Timestamp).toDate();
+          totalHoursDouble += endTime.difference(startTime).inMinutes / 60.0;
+        } catch (_) {}
       }
+      int totalHours = totalHoursDouble.round();
       
       // Получаем задачи
       QuerySnapshot tasksSnapshot = await _firestore
           .collection('users')
           .doc(userId)
           .collection('tasks')
-          .where('done', isEqualTo: false)
+          .where('isDone', isEqualTo: false)
           .get();
       
       return {
@@ -418,6 +423,106 @@ class FirestoreService {
         'totalShifts': 0,
         'activeTasks': 0,
       };
+    }
+  }
+
+  // ==================== БУХГАЛТЕР: все сотрудники ====================
+
+  /// Получить список всех пользователей с ролью employee
+  Future<List<Map<String, dynamic>>> getAllEmployees() async {
+    try {
+      QuerySnapshot snapshot = await _firestore
+          .collection('users')
+          .where('role', isEqualTo: 'employee')
+          .get();
+      return snapshot.docs
+          .map((doc) => {'id': doc.id, ...doc.data() as Map<String, dynamic>})
+          .toList();
+    } catch (e) {
+      print('Error getting employees: $e');
+      return [];
+    }
+  }
+
+  /// Получить смены конкретного сотрудника за месяц
+  Future<List<Map<String, dynamic>>> getEmployeeShiftsByMonth(
+    String employeeId,
+    int year,
+    int month,
+  ) async {
+    try {
+      final startDate = DateTime(year, month, 1);
+      final endDate = DateTime(year, month + 1, 0, 23, 59, 59);
+      QuerySnapshot snapshot = await _firestore
+          .collection('users')
+          .doc(employeeId)
+          .collection('shifts')
+          .where('date',
+              isGreaterThanOrEqualTo: Timestamp.fromDate(startDate))
+          .where('date', isLessThanOrEqualTo: Timestamp.fromDate(endDate))
+          .orderBy('date', descending: false)
+          .get();
+      return snapshot.docs
+          .map((doc) => {'id': doc.id, ...doc.data() as Map<String, dynamic>})
+          .toList();
+    } catch (e) {
+      print('Error getting employee shifts: $e');
+      return [];
+    }
+  }
+
+  /// Сводный отчёт по всем сотрудникам за месяц
+  Future<List<Map<String, dynamic>>> getMonthlyReportForAccountant(
+    int year,
+    int month,
+  ) async {
+    try {
+      final employees = await getAllEmployees();
+      final List<Map<String, dynamic>> report = [];
+
+      for (final employee in employees) {
+        final employeeId = employee['id'] as String;
+        final shifts = await getEmployeeShiftsByMonth(employeeId, year, month);
+
+        double totalHours = 0;
+        double totalEarnings = 0;
+        int shiftsCount = shifts.length;
+
+        for (final shift in shifts) {
+          try {
+            final startTime = (shift['startTime'] as Timestamp).toDate();
+            final endTime = (shift['endTime'] as Timestamp).toDate();
+            final hours = endTime.difference(startTime).inMinutes / 60.0;
+            totalHours += hours;
+
+            final paymentType = shift['paymentType'] ?? 'hourly';
+            if (paymentType == 'hourly') {
+              final rate = (shift['hourlyRate'] ?? 0.0).toDouble();
+              final paid = (shift['paidTime'] ?? 0.0).toDouble();
+              totalEarnings += rate * (paid > 0 ? paid : hours);
+            } else if (paymentType == 'perShift') {
+              totalEarnings += (shift['shiftRate'] ?? 0.0).toDouble();
+            }
+            totalEarnings += (shift['bonus'] ?? 0.0).toDouble();
+            totalEarnings -= (shift['expenses'] ?? 0.0).toDouble();
+          } catch (_) {}
+        }
+
+        report.add({
+          'employeeId': employeeId,
+          'name': employee['name'] ?? 'Без имени',
+          'email': employee['email'] ?? '',
+          'totalHours': totalHours,
+          'totalEarnings': totalEarnings,
+          'shiftsCount': shiftsCount,
+          'shifts': shifts,
+        });
+      }
+
+      return report;
+    } catch (e) {
+      print('Error getting monthly report: $e');
+      return [];
     }
   }
 }

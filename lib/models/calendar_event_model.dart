@@ -321,12 +321,16 @@ class TaskEvent extends CalendarEvent {
   }
   
   @override
-  // TODO: implement endTime
-  DateTime? get endTime => throw UnimplementedError();
-  
+  DateTime get startTime {
+    if (time != null) return time!;
+    return DateTime(date.year, date.month, date.day, 0, 0);
+  }
+
   @override
-  // TODO: implement startTime
-  DateTime get startTime => throw UnimplementedError();
+  DateTime? get endTime {
+    if (time != null) return time!.add(const Duration(hours: 1));
+    return null;
+  }
 }
 
 class Subtask {

@@ -23,7 +23,7 @@ class CalendarService {
       throw Exception('Не найдено ни одного календаря');
     }
 
-    final calendarId = calendarsResult.first.id!;
+    final calendarId = calendarsResult.first.id;
 
     await _plugin.createEvent(
       calendarId: calendarId,
@@ -47,7 +47,7 @@ class CalendarService {
       throw Exception('Не найдено ни одного календаря');
     }
 
-    final calendarId = calendarsResult.first.id!;
+    final calendarId = calendarsResult.first.id;
 
     // Определяем время начала и конца
     DateTime startDateTime = task.date;
@@ -87,7 +87,7 @@ class CalendarService {
     final calendarsResult = await _plugin.listCalendars();
     if (calendarsResult.isEmpty) return [];
 
-    final calendarIds = calendarsResult.map((c) => c.id!).toList();
+    final calendarIds = calendarsResult.map((c) => c.id).toList();
 
     final events = await _plugin.listEvents(
       start,

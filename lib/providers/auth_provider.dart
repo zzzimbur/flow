@@ -25,7 +25,7 @@ class AuthProvider extends ChangeNotifier {
     });
   }
 
-  get userName => null;
+  String get userName => _user?.displayName ?? '';
   
   // Автоматический вход для разработки
   Future<bool> autoSignInForDevelopment() async {
@@ -104,13 +104,14 @@ class AuthProvider extends ChangeNotifier {
         'email': email,
         'currency': '₽ Рубль',
         'theme': 'light',
+        'role': 'employee',
         'createdAt': FieldValue.serverTimestamp(),
       });
-      
+
       _user = userCredential.user;
       _isLoading = false;
       notifyListeners();
-      
+
       return true;
     } on FirebaseAuthException catch (e) {
       _isLoading = false;
@@ -124,7 +125,7 @@ class AuthProvider extends ChangeNotifier {
       return false;
     }
   }
-  
+
   // Вход пользователя
   Future<bool> signIn({
     required String email,

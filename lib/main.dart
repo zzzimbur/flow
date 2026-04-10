@@ -180,9 +180,12 @@ class _AppInitializerState extends State<AppInitializer> {
       // Если пользователь авторизован - загружаем его данные
       if (isAuth && userId.isNotEmpty) {
         debugPrint('🔄 Загрузка данных пользователя...');
-        
+
+        // Передаём displayName из Firebase Auth чтобы синхронизировать с Firestore
+        final firebaseDisplayName = authProvider.user?.displayName ?? '';
+
         await Future.wait([
-          settingsProvider.initialize(userId),
+          settingsProvider.initialize(userId, firebaseDisplayName: firebaseDisplayName),
           subscriptionProvider.initialize(userId),
           goalProvider.loadGoals(userId),
           goalsProvider.loadGoals(),
