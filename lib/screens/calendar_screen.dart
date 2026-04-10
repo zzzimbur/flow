@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
+import 'dart:async';
 import 'dart:ui';
 import '../providers/settings_provider.dart';
 import '../providers/auth_provider.dart';
@@ -34,7 +35,11 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
   
   Map<DateTime, List<dynamic>> _events = {};
   bool _isLoading = true;
-  
+  // Хранит месяц, который сейчас загружается — защита от race condition
+  DateTime? _loadingForMonth;
+  // Debounce-таймер для перелистывания — не грузим Firestore при каждом кадре свайпа
+  Timer? _pageChangeDebounce;
+
   double _monthEarnings = 0.0;
   double _monthHours = 0.0;
   int _monthTasks = 0;
@@ -58,6 +63,7 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
 
   @override
   void dispose() {
+    _pageChangeDebounce?.cancel();
     _monthPageController.dispose();
     _weekPageController.dispose();
     _fadeController.dispose();
@@ -66,20 +72,25 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
 
   Future<void> _loadData() async {
     if (!mounted) return;
+
+    // Запоминаем, для какого месяца начали загрузку
+    final targetMonth = DateTime(_focusedMonth.year, _focusedMonth.month, 1);
+    _loadingForMonth = targetMonth;
+
     setState(() => _isLoading = true);
-    
+
     try {
       final authProvider = context.read<AuthProvider>();
       final userId = authProvider.userId;
-      
+
       if (userId.isEmpty) {
         if (mounted) setState(() => _isLoading = false);
         return;
       }
-      
-      final startOfMonth = DateTime(_focusedMonth.year, _focusedMonth.month, 1);
-      final endOfMonth = DateTime(_focusedMonth.year, _focusedMonth.month + 1, 0, 23, 59, 59);
-      
+
+      final startOfMonth = DateTime(targetMonth.year, targetMonth.month, 1);
+      final endOfMonth = DateTime(targetMonth.year, targetMonth.month + 1, 0, 23, 59, 59);
+
       final shiftsSnap = await FirebaseFirestore.instance
           .collection('users')
           .doc(userId)
@@ -87,7 +98,7 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
           .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfMonth))
           .where('date', isLessThanOrEqualTo: Timestamp.fromDate(endOfMonth))
           .get();
-      
+
       final tasksSnap = await FirebaseFirestore.instance
           .collection('users')
           .doc(userId)
@@ -95,12 +106,15 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
           .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfMonth))
           .where('date', isLessThanOrEqualTo: Timestamp.fromDate(endOfMonth))
           .get();
-      
+
+      // Если пользователь уже перелистал на другой месяц — отбрасываем устаревший результат
+      if (!mounted || _loadingForMonth != targetMonth) return;
+
       final newEvents = <DateTime, List<dynamic>>{};
       double earnings = 0.0;
       double hours = 0.0;
       int tasks = 0;
-      
+
       for (var doc in shiftsSnap.docs) {
         final shift = ShiftModel.fromSnapshot(doc);
         final dateKey = DateTime(shift.date.year, shift.date.month, shift.date.day);
@@ -108,15 +122,16 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
         earnings += shift.totalEarnings;
         hours += shift.totalHours;
       }
-      
+
       for (var doc in tasksSnap.docs) {
         final task = TaskModel.fromSnapshot(doc);
         final dateKey = DateTime(task.date.year, task.date.month, task.date.day);
         newEvents[dateKey] = [...(newEvents[dateKey] ?? []), task];
         tasks++;
       }
-      
-      if (mounted) {
+
+      if (mounted && _loadingForMonth == targetMonth) {
+        _fadeController.reset();
         setState(() {
           _events = newEvents;
           _monthEarnings = earnings;
@@ -515,20 +530,20 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
       controller: _monthPageController,
       onPageChanged: (index) {
         final monthsOffset = index - 1000;
-        // используем DateTime(год, месяц, 1) как базу вместо now()
         final baseDate = DateTime(DateTime.now().year, DateTime.now().month, 1);
         final newMonth = DateTime(baseDate.year, baseDate.month + monthsOffset, 1);
-        
-        setState(() {
-          _focusedMonth = newMonth;
-        });
-        
-        _loadData();
+
+        setState(() => _focusedMonth = newMonth);
+
+        // Debounce: грузим данные только когда пользователь остановился (300 мс)
+        _pageChangeDebounce?.cancel();
+        _pageChangeDebounce = Timer(const Duration(milliseconds: 300), _loadData);
       },
       itemBuilder: (context, index) {
-        // используем _focusedMonth вместо now
+        // ВАЖНО: база всегда DateTime.now(), а не _focusedMonth
+        // Иначе при смещении _focusedMonth смещение offset применяется дважды
         final monthsOffset = index - 1000;
-        final baseMonth = DateTime(_focusedMonth.year, _focusedMonth.month, 1);
+        final baseMonth = DateTime(DateTime.now().year, DateTime.now().month, 1);
         final month = DateTime(baseMonth.year, baseMonth.month + monthsOffset, 1);
         
         return SingleChildScrollView(
