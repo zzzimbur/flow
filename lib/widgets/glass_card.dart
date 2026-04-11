@@ -142,21 +142,11 @@ class _LiquidButtonState extends State<LiquidButton> with SingleTickerProviderSt
         child: Container(
           padding: widget.padding,
           decoration: BoxDecoration(
-            gradient: widget.isSelected
-                ? LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      widget.color?.withOpacity(0.8) ?? const Color(0xFF8b7ff5).withOpacity(0.8),
-                      widget.color?.withOpacity(0.6) ?? const Color(0xFF6c5ce7).withOpacity(0.6),
-                    ],
-                  )
-                : null,
-            color: !widget.isSelected
-                ? (isDark
+            color: widget.isSelected
+                ? (widget.color ?? const Color(0xFF8b7ff5)).withOpacity(0.85)
+                : (isDark
                     ? Colors.white.withOpacity(0.08)
-                    : Colors.black.withOpacity(0.04))
-                : null,
+                    : Colors.black.withOpacity(0.04)),
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: widget.isSelected

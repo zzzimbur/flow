@@ -11,6 +11,7 @@ import 'add_goal_screen.dart';
 import 'edit_goal_screen.dart';
 import '../providers/subscription_provider.dart';
 import '../widgets/ad_banner.dart';
+import '../widgets/enhanced_glass_card.dart';
 import 'main_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -179,24 +180,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final userName = settings.userName.split(' ')[0];
     final subscriptionProvider = Provider.of<SubscriptionProvider>(context);
     
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: isDark
-              ? [
-                  const Color(0xFF0f172a),
-                  const Color(0xFF1e293b),
-                  const Color(0xFF1e1b4b),
-                ]
-              : [
-                  const Color(0xFFfaf5ff),
-                  const Color(0xFFf3e8ff),
-                  const Color(0xFFe9d5ff),
-                ],
-        ),
-      ),
+    return AnimatedBackground(
+      isDark: isDark,
       child: Column(
         children: [
           if (!subscriptionProvider.isActive) const AdBanner(),
@@ -360,12 +345,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [color, color.withOpacity(0.7)],
-                    ),
+                    color: color.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(icon, color: Colors.white, size: 20),
+                  child: Icon(icon, color: color, size: 20),
                 ),
                 const SizedBox(height: 16),
                 Text(
@@ -404,25 +387,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         child: Container(
           padding: const EdgeInsets.all(28),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: balance >= 0
-                  ? [
-                      const Color(0xFF10b981).withOpacity(0.2),
-                      const Color(0xFF059669).withOpacity(0.1),
-                    ]
-                  : [
-                      const Color(0xFFef4444).withOpacity(0.2),
-                      const Color(0xFFdc2626).withOpacity(0.1),
-                    ],
-            ),
+            color: isDark
+                ? Colors.white.withOpacity(0.07)
+                : Colors.white.withOpacity(0.72),
             borderRadius: BorderRadius.circular(28),
             border: Border.all(
               color: balance >= 0
-                  ? const Color(0xFF10b981).withOpacity(0.3)
-                  : const Color(0xFFef4444).withOpacity(0.3),
-              width: 1.5,
+                  ? const Color(0xFF10b981).withOpacity(0.25)
+                  : const Color(0xFFef4444).withOpacity(0.25),
+              width: 1,
             ),
           ),
           child: Column(

@@ -123,14 +123,7 @@ class CustomBottomNav extends StatelessWidget {
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeInOut,
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
-          decoration: BoxDecoration(
-            color: isActive
-                ? (isDark 
-                    ? Colors.white.withOpacity(0.15) 
-                    : Colors.black.withOpacity(0.06))
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(16),
-          ),
+          decoration: const BoxDecoration(),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -156,6 +149,16 @@ class CustomBottomNav extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
               ),
+              const SizedBox(height: 3),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: isActive ? 4 : 0,
+                height: isActive ? 4 : 0,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF8b7ff5),
+                  shape: BoxShape.circle,
+                ),
+              ),
             ],
           ),
         ),
@@ -174,14 +177,7 @@ class CustomBottomNav extends StatelessWidget {
         height: 56,
         margin: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              const Color(0xFF8b7ff5).withOpacity(0.9),
-              const Color(0xFF6c5ce7).withOpacity(0.8),
-            ],
-          ),
+          color: const Color(0xFF8b7ff5),
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: Colors.white.withOpacity(0.3),
@@ -189,14 +185,9 @@ class CustomBottomNav extends StatelessWidget {
           ),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF6c5ce7).withOpacity(0.4),
+              color: const Color(0xFF8b7ff5).withOpacity(0.35),
               blurRadius: 20,
               offset: const Offset(0, 6),
-            ),
-            BoxShadow(
-              color: const Color(0xFF6c5ce7).withOpacity(0.2),
-              blurRadius: 40,
-              offset: const Offset(0, 12),
             ),
           ],
         ),

@@ -153,24 +153,8 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
     final subscriptionProvider = Provider.of<SubscriptionProvider>(context);
     final isDark = settings.isDarkMode;
 
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: isDark
-              ? [
-                  const Color(0xFF0f172a),
-                  const Color(0xFF1e293b),
-                  const Color(0xFF1e1b4b),
-                ]
-              : [
-                  const Color(0xFFfaf5ff),
-                  const Color(0xFFf3e8ff),
-                  const Color(0xFFe9d5ff),
-                ],
-        ),
-      ),
+    return AnimatedBackground(
+      isDark: isDark,
       child: Column(
         children: [
           if (!subscriptionProvider.isActive) const AdBanner(),
@@ -258,23 +242,15 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
               filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
               child: Container(
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: isDark
-                        ? [
-                            Colors.white.withOpacity(0.15),
-                            Colors.white.withOpacity(0.08),
-                          ]
-                        : [
-                            Colors.white.withOpacity(0.9),
-                            Colors.white.withOpacity(0.7),
-                          ],
-                  ),
+                  color: isDark
+                      ? Colors.white.withOpacity(0.08)
+                      : Colors.white.withOpacity(0.75),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
                     color: isDark
-                        ? Colors.white.withOpacity(0.2)
+                        ? Colors.white.withOpacity(0.12)
                         : Colors.white.withOpacity(0.5),
-                    width: 1.5,
+                    width: 1,
                   ),
                 ),
                 child: Row(
@@ -325,13 +301,11 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF8b7ff5), Color(0xFF6c5ce7)],
-                ),
+                color: const Color(0xFF8b7ff5),
                 borderRadius: BorderRadius.circular(14),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF8b7ff5).withOpacity(0.4),
+                    color: const Color(0xFF8b7ff5).withOpacity(0.25),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
@@ -364,11 +338,7 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
         decoration: BoxDecoration(
-          gradient: isSelected
-              ? const LinearGradient(
-                  colors: [Color(0xFF8b7ff5), Color(0xFF6c5ce7)],
-                )
-              : null,
+          color: isSelected ? const Color(0xFF8b7ff5) : null,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Icon(
@@ -394,19 +364,9 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: isDark
-                    ? [
-                        Colors.white.withOpacity(0.1),
-                        Colors.white.withOpacity(0.05),
-                      ]
-                    : [
-                        Colors.white.withOpacity(0.9),
-                        Colors.white.withOpacity(0.7),
-                      ],
-              ),
+              color: isDark
+                  ? Colors.white.withOpacity(0.07)
+                  : Colors.white.withOpacity(0.72),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
                 color: isDark
@@ -426,23 +386,11 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
                   isDark,
                 ),
                 Container(
-                  width: 1.5,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: isDark
-                          ? [
-                              Colors.white.withOpacity(0.2),
-                              Colors.white.withOpacity(0.05),
-                            ]
-                          : [
-                              Colors.black.withOpacity(0.15),
-                              Colors.black.withOpacity(0.05),
-                            ],
-                    ),
-                  ),
+                  width: 1,
+                  height: 28,
+                  color: isDark
+                      ? Colors.white.withOpacity(0.12)
+                      : Colors.black.withOpacity(0.08),
                 ),
                 _buildStatItem(
                   '${_monthHours.toStringAsFixed(0)}ч',
@@ -452,23 +400,11 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
                   isDark,
                 ),
                 Container(
-                  width: 1.5,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: isDark
-                          ? [
-                              Colors.white.withOpacity(0.2),
-                              Colors.white.withOpacity(0.05),
-                            ]
-                          : [
-                              Colors.black.withOpacity(0.15),
-                              Colors.black.withOpacity(0.05),
-                            ],
-                    ),
-                  ),
+                  width: 1,
+                  height: 28,
+                  color: isDark
+                      ? Colors.white.withOpacity(0.12)
+                      : Colors.black.withOpacity(0.08),
                 ),
                 _buildStatItem(
                   '$_monthTasks',
@@ -694,22 +630,12 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
                 },
                 child: Container(
                   decoration: BoxDecoration(
-                    gradient: isSelected
-                        ? const LinearGradient(
-                            colors: [Color(0xFF8b7ff5), Color(0xFF6c5ce7)],
-                          )
+                    color: isSelected
+                        ? const Color(0xFF8b7ff5)
                         : (isToday
-                            ? LinearGradient(
-                                colors: isDark
-                                    ? [
-                                        Colors.white.withOpacity(0.15),
-                                        Colors.white.withOpacity(0.08),
-                                      ]
-                                    : [
-                                        Colors.white.withOpacity(0.9),
-                                        Colors.white.withOpacity(0.7),
-                                      ],
-                              )
+                            ? (isDark
+                                ? Colors.white.withOpacity(0.12)
+                                : Colors.black.withOpacity(0.06))
                             : null),
                     shape: BoxShape.circle,
                     border: isToday && !isSelected
@@ -778,10 +704,8 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
           width: 5,
           height: 5,
           margin: const EdgeInsets.symmetric(horizontal: 1),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF8b7ff5), Color(0xFF6c5ce7)],
-            ),
+          decoration: const BoxDecoration(
+            color: Color(0xFF8b7ff5),
             shape: BoxShape.circle,
           ),
         ),
@@ -794,10 +718,8 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
           width: 5,
           height: 5,
           margin: const EdgeInsets.symmetric(horizontal: 1),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF10b981), Color(0xFF059669)],
-            ),
+          decoration: const BoxDecoration(
+            color: Color(0xFF10b981),
             shape: BoxShape.circle,
           ),
         ),
@@ -819,17 +741,9 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
           child: Container(
             padding: const EdgeInsets.all(40),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: isDark
-                    ? [
-                        Colors.white.withOpacity(0.05),
-                        Colors.white.withOpacity(0.02),
-                      ]
-                    : [
-                        Colors.white.withOpacity(0.7),
-                        Colors.white.withOpacity(0.5),
-                      ],
-              ),
+              color: isDark
+                  ? Colors.white.withOpacity(0.05)
+                  : Colors.white.withOpacity(0.65),
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
                 color: isDark
