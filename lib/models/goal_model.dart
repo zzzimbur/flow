@@ -1,7 +1,7 @@
 import 'dart:ui';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flow/providers/goals_provider.dart';
+import '../providers/goals_provider.dart';
 
 class GoalModel {
   final String id;

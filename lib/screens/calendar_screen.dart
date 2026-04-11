@@ -1,4 +1,4 @@
-import 'package:flow/widgets/enhanced_glass_card.dart';
+import '../widgets/enhanced_glass_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
