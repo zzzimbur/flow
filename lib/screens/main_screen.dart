@@ -2,13 +2,13 @@ import '../screens/settings_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:ui';
-import '../widgets/glass_card.dart';
 import '../widgets/custom_bottom_nav.dart';
 import '../providers/settings_provider.dart';
 import 'home_screen.dart';
 import 'finance_screen.dart';
 import 'calendar_screen.dart';
 import 'add_task_screen.dart';
+import 'ai_screen.dart';
 import 'add_transaction_screen.dart';
 import 'add_shift_screen.dart';
 import 'accountant_report_screen.dart';
@@ -22,9 +22,12 @@ class MainScreen extends StatefulWidget {
   State<MainScreen> createState() => _MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> {
+class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateMixin {
   late int _currentIndex;
   bool _showAddMenu = false;
+  late AnimationController _menuController;
+  late Animation<double> _menuFade;
+  late Animation<Offset> _menuSlide;
 
   // Ключи для принудительного пересоздания экранов
   Key _homeKey = UniqueKey();
@@ -37,6 +40,31 @@ class _MainScreenState extends State<MainScreen> {
   void initState() {
     super.initState();
     _currentIndex = widget.initialTab;
+    _menuController = AnimationController(
+      duration: const Duration(milliseconds: 320),
+      vsync: this,
+    );
+    _menuFade = CurvedAnimation(parent: _menuController, curve: Curves.easeOut);
+    _menuSlide = Tween<Offset>(
+      begin: const Offset(0, 0.25),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _menuController, curve: Curves.easeOutCubic));
+  }
+
+  @override
+  void dispose() {
+    _menuController.dispose();
+    super.dispose();
+  }
+
+  void _openMenu() {
+    setState(() => _showAddMenu = true);
+    _menuController.forward(from: 0);
+  }
+
+  Future<void> _closeMenu() async {
+    await _menuController.reverse();
+    if (mounted) setState(() => _showAddMenu = false);
   }
 
   // index 4 = AccountantReportScreen (only shown when isAccountant)
@@ -62,28 +90,6 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
-  /// Метод для обновления конкретного экрана
-  void _refreshScreen(int index) {
-    setState(() {
-      switch (index) {
-        case 0:
-          _homeKey = UniqueKey();
-          break;
-        case 1:
-          _financeKey = UniqueKey();
-          break;
-        case 2:
-          _calendarKey = UniqueKey();
-          break;
-        case 3:
-          _settingsKey = UniqueKey();
-          break;
-        case 4:
-          _accountantKey = UniqueKey();
-          break;
-      }
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -92,22 +98,12 @@ class _MainScreenState extends State<MainScreen> {
     final isAccountant = settings.isAccountant;
 
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: isDark
-                ? [const Color(0xFF0f172a), const Color(0xFF1e293b)]
-                : [const Color(0xFFf8fafc), const Color(0xFFe2e8f0)],
-          ),
-        ),
-        child: Stack(
-          children: [
-            _screenForIndex(_currentIndex),
-            if (_showAddMenu) _buildAddMenu(isDark),
-          ],
-        ),
+      backgroundColor: Colors.transparent,
+      body: Stack(
+        children: [
+          _screenForIndex(_currentIndex),
+          if (_showAddMenu) _buildAddMenu(isDark),
+        ],
       ),
       bottomNavigationBar: CustomBottomNav(
         currentIndex: _currentIndex,
@@ -117,133 +113,172 @@ class _MainScreenState extends State<MainScreen> {
             _currentIndex = index;
           });
         },
-        onAddPressed: () {
-          setState(() {
-            _showAddMenu = true;
-          });
-        },
+        onAddPressed: _openMenu,
       ),
     );
   }
 
   Widget _buildAddMenu(bool isDark) {
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _showAddMenu = false;
-        });
-      },
-      child: Container(
-        color: Colors.black.withOpacity(0.3),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-          child: Align(
-            alignment: Alignment.bottomCenter,
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 100, left: 16, right: 16),
-              child: GestureDetector(
-                onTap: () {},
-                child: GlassCard(
-                  padding: const EdgeInsets.all(24),
-                  color: isDark 
-                      ? const Color(0xFF1e293b).withOpacity(0.95)
-                      : Colors.white.withOpacity(0.95),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Создать',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w600,
-                              color: isDark ? Colors.white : const Color(0xFF1e293b),
+    final settings = Provider.of<SettingsProvider>(context, listen: false);
+    final accent = settings.accentColor;
+
+    final items = [
+      _MenuItemData(
+        title: 'Смену',
+        subtitle: 'Добавить в график',
+        icon: Icons.event_available_rounded,
+        color: accent,
+        onTap: () async {
+          await _closeMenu();
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const AddShiftScreen()),
+          );
+          if (result == true && mounted) _refreshAllScreens();
+        },
+      ),
+      _MenuItemData(
+        title: 'Операцию',
+        subtitle: 'Доход или расход',
+        icon: Icons.account_balance_wallet_rounded,
+        color: const Color(0xFF10b981),
+        onTap: () async {
+          await _closeMenu();
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const AddTransactionScreen()),
+          );
+          if (result == true && mounted) _refreshAllScreens();
+        },
+      ),
+      _MenuItemData(
+        title: 'Задачу',
+        subtitle: 'Напоминание или дело',
+        icon: Icons.check_circle_outline_rounded,
+        color: const Color(0xFF3b82f6),
+        onTap: () async {
+          await _closeMenu();
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const AddTaskScreen()),
+          );
+          if (result == true && mounted) _refreshAllScreens();
+        },
+      ),
+      _MenuItemData(
+        title: 'Flow AI',
+        subtitle: 'Советник и прогноз',
+        icon: Icons.auto_awesome_rounded,
+        color: const Color(0xFF00e5b3),
+        onTap: () async {
+          await _closeMenu();
+          if (mounted) {
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const AiScreen()));
+          }
+        },
+      ),
+    ];
+
+    return FadeTransition(
+      opacity: _menuFade,
+      child: GestureDetector(
+        onTap: _closeMenu,
+        child: Container(
+          color: Colors.black.withOpacity(0.4),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: SlideTransition(
+                position: _menuSlide,
+                child: GestureDetector(
+                  onTap: () {},
+                  child: Container(
+                    margin: const EdgeInsets.fromLTRB(16, 0, 16, 104),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? const Color(0xFF1a1f2e).withOpacity(0.98)
+                          : Colors.white.withOpacity(0.98),
+                      borderRadius: BorderRadius.circular(28),
+                      border: Border.all(
+                        color: isDark
+                            ? Colors.white.withOpacity(0.1)
+                            : Colors.black.withOpacity(0.06),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(isDark ? 0.5 : 0.15),
+                          blurRadius: 40,
+                          offset: const Offset(0, -8),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Handle
+                        Padding(
+                          padding: const EdgeInsets.only(top: 12, bottom: 4),
+                          child: Container(
+                            width: 36,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? Colors.white.withOpacity(0.2)
+                                  : Colors.black.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(2),
                             ),
                           ),
-                          IconButton(
-                            onPressed: () {
-                              setState(() {
-                                _showAddMenu = false;
-                              });
-                            },
-                            icon: const Icon(Icons.close),
-                            style: IconButton.styleFrom(
-                              backgroundColor: isDark 
-                                  ? const Color(0xFF0f172a) 
-                                  : const Color(0xFFf1f5f9),
-                              foregroundColor: isDark 
-                                  ? Colors.white 
-                                  : const Color(0xFF64748b),
-                            ),
+                        ),
+                        // Title
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Создать',
+                                style: TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w700,
+                                  color: isDark ? Colors.white : const Color(0xFF1e293b),
+                                  letterSpacing: -0.5,
+                                ),
+                              ),
+                              GestureDetector(
+                                onTap: _closeMenu,
+                                child: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: isDark
+                                        ? Colors.white.withOpacity(0.08)
+                                        : Colors.black.withOpacity(0.05),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Icon(
+                                    Icons.close_rounded,
+                                    size: 18,
+                                    color: isDark ? Colors.white60 : Colors.black45,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      // Задача
-                      _buildMenuItem(
-                        title: 'Задачу',
-                        subtitle: 'Создать новую задачу',
-                        icon: Icons.check_circle_outline,
-                        color: const Color(0xFF3b82f6),
-                        onTap: () async {
-                          setState(() => _showAddMenu = false);
-                          final result = await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const AddTaskScreen(),
-                            ),
+                        ),
+                        // Items
+                        ...items.asMap().entries.map((e) {
+                          final i = e.key;
+                          final item = e.value;
+                          return _AnimatedMenuItem(
+                            data: item,
+                            isDark: isDark,
+                            delay: Duration(milliseconds: i * 50),
+                            parentController: _menuController,
                           );
-                          if (result == true && mounted) {
-                            _refreshAllScreens();
-                          }
-                        },
-                        isDark: isDark,
-                      ),
-                      const SizedBox(height: 8),
-                      // Операция
-                      _buildMenuItem(
-                        title: 'Операцию',
-                        subtitle: 'Доход или расход',
-                        icon: Icons.account_balance_wallet_outlined,
-                        color: const Color(0xFF10b981),
-                        onTap: () async {
-                          setState(() => _showAddMenu = false);
-                          final result = await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const AddTransactionScreen(),
-                            ),
-                          );
-                          if (result == true && mounted) {
-                            _refreshAllScreens();
-                          }
-                        },
-                        isDark: isDark,
-                      ),
-                      const SizedBox(height: 8),
-                      // Смена
-                      _buildMenuItem(
-                        title: 'Смену',
-                        subtitle: 'Добавить в график',
-                        icon: Icons.event_available,
-                        color: const Color(0xFF8b7ff5),
-                        onTap: () async {
-                          setState(() => _showAddMenu = false);
-                          final result = await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const AddShiftScreen(),
-                            ),
-                          );
-                          if (result == true && mounted) {
-                            _refreshAllScreens();
-                          }
-                        },
-                        isDark: isDark,
-                      ),
-                    ],
+                        }),
+                        const SizedBox(height: 16),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -254,68 +289,128 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  Widget _buildMenuItem({
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required Color color,
-    required VoidCallback onTap,
-    required bool isDark,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: isDark 
-                ? const Color(0xFF0f172a).withOpacity(0.5) 
-                : const Color(0xFFf8fafc),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
+}
+
+class _MenuItemData {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _MenuItemData({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+}
+
+class _AnimatedMenuItem extends StatelessWidget {
+  final _MenuItemData data;
+  final bool isDark;
+  final Duration delay;
+  final AnimationController parentController;
+
+  const _AnimatedMenuItem({
+    required this.data,
+    required this.isDark,
+    required this.delay,
+    required this.parentController,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final start = delay.inMilliseconds / 320.0;
+    final slideAnim = Tween<Offset>(
+      begin: const Offset(0, 0.3),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: parentController,
+      curve: Interval(start.clamp(0.0, 1.0), 1.0, curve: Curves.easeOutCubic),
+    ));
+    final fadeAnim = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(
+        parent: parentController,
+        curve: Interval(start.clamp(0.0, 1.0), 1.0, curve: Curves.easeOut),
+      ),
+    );
+
+    return FadeTransition(
+      opacity: fadeAnim,
+      child: SlideTransition(
+        position: slideAnim,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+          child: Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(18),
+            child: InkWell(
+              onTap: data.onTap,
+              borderRadius: BorderRadius.circular(18),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(12),
+                  color: isDark
+                      ? Colors.white.withOpacity(0.05)
+                      : data.color.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(18),
                 ),
-                child: Icon(icon, color: color, size: 24),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
                   children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: isDark ? Colors.white : const Color(0xFF1e293b),
+                    Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: data.color.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(data.icon, color: data.color, size: 22),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            data.title,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: isDark ? Colors.white : const Color(0xFF1e293b),
+                              letterSpacing: -0.2,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            data.subtitle,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: isDark
+                                  ? Colors.white38
+                                  : Colors.black38,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: isDark 
-                            ? const Color(0xFF94a3b8) 
-                            : const Color(0xFF64748b),
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: data.color.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        Icons.arrow_forward_rounded,
+                        size: 14,
+                        color: data.color,
                       ),
                     ),
                   ],
                 ),
               ),
-              Icon(
-                Icons.chevron_right,
-                color: isDark ? const Color(0xFF94a3b8) : const Color(0xFF94a3b8),
-              ),
-            ],
+            ),
           ),
         ),
       ),

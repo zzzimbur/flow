@@ -919,9 +919,25 @@ final subscriptionProvider = Provider.of<SubscriptionProvider>(context);
             ),
           ),
           ElevatedButton(
-            onPressed: () {
-              settings.setUserPassword(newPasswordController.text);
+            onPressed: () async {
+              final oldPwd = oldPasswordController.text.trim();
+              final newPwd = newPasswordController.text.trim();
+              if (oldPwd.isEmpty || newPwd.isEmpty) return;
               Navigator.pop(context);
+              final authProv = Provider.of<auth.AuthProvider>(context, listen: false);
+              final ok = await authProv.changePassword(
+                currentPassword: oldPwd,
+                newPassword: newPwd,
+              );
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text(ok ? '✅ Пароль изменён' : authProv.errorMessage ?? 'Ошибка'),
+                  backgroundColor: ok ? Colors.green : Colors.red,
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  margin: const EdgeInsets.all(16),
+                ));
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: accentColor,

@@ -190,7 +190,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                             ),
                             const SizedBox(height: 24),
                             const Text(
-                              'Flow Premium',
+                              'Flow AI',
                               style: TextStyle(
                                 fontSize: 32,
                                 fontWeight: FontWeight.w900,
@@ -200,11 +200,12 @@ class _PaymentScreenState extends State<PaymentScreen> {
                             ),
                             const SizedBox(height: 12),
                             Text(
-                              'Разблокируйте все возможности',
+                              'Умный учёт с искусственным интеллектом',
                               style: TextStyle(
                                 fontSize: 16,
                                 color: Colors.white.withOpacity(0.9),
                               ),
+                              textAlign: TextAlign.center,
                             ),
                             const SizedBox(height: 32),
                             Container(
@@ -251,7 +252,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Что входит в Premium:',
+                              'Что входит в Flow AI:',
                               style: TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.w700,
@@ -260,33 +261,27 @@ class _PaymentScreenState extends State<PaymentScreen> {
                             ),
                             const SizedBox(height: 20),
                             _buildFeature(
-                              '📅',
-                              'Недельный вид календаря',
-                              'Планируйте неделю с Drag & Drop',
+                              '🤖',
+                              'AI-прогноз доходов',
+                              'Умные предсказания на основе ваших смен',
                               isDark,
                             ),
                             _buildFeature(
-                              '💰',
-                              'Управление финансами',
-                              'Отслеживайте доходы и расходы',
+                              '💡',
+                              'Персональные советы',
+                              'AI анализирует расходы и даёт рекомендации',
                               isDark,
                             ),
                             _buildFeature(
-                              '🎯',
-                              'Неограниченные цели',
-                              'Создавайте сколько угодно целей',
+                              '📷',
+                              'Сканирование чеков',
+                              'Фото чека → автоматическая запись расхода',
                               isDark,
                             ),
                             _buildFeature(
-                              '📋',
-                              'Шаблоны событий',
-                              'Быстро добавляйте повторяющиеся задачи',
-                              isDark,
-                            ),
-                            _buildFeature(
-                              '📊',
-                              'Детальная аналитика',
-                              'Визуализация вашей продуктивности',
+                              '🎙️',
+                              'Голосовой ввод',
+                              'Добавляйте смены и траты голосом',
                               isDark,
                             ),
                             _buildFeature(

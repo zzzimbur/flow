@@ -8,6 +8,7 @@ import '../providers/auth_provider.dart';
 import '../widgets/enhanced_glass_card.dart';
 import '../providers/subscription_provider.dart';
 import '../widgets/ad_banner.dart';
+import 'ai_screen.dart';
 
 class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({super.key});
@@ -212,6 +213,24 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                               color: isDark ? Colors.white : Colors.black,
                             ),
                           ),
+                          const Spacer(),
+                          GestureDetector(
+                            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AiScreen())),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(colors: [Color(0xFF7b6ff0), Color(0xFF00e5b3)]),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: const Row(
+                                children: [
+                                  Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 14),
+                                  SizedBox(width: 5),
+                                  Text('Flow AI', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
+                                ],
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -374,7 +393,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            '₽${_formatNumber(balance)}',
+            '${Provider.of<SettingsProvider>(context, listen: false).currencySymbol}${_formatNumber(balance)}',
             style: TextStyle(
               fontSize: 36,
               fontWeight: FontWeight.bold,
@@ -389,7 +408,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
               Expanded(
                 child: _buildStatCard(
                   label: 'Доходы',
-                  value: '₽${_formatNumber(earnings)}',
+                  value: '${Provider.of<SettingsProvider>(context, listen: false).currencySymbol}${_formatNumber(earnings)}',
                   color: const Color(0xFF10b981),
                   icon: Icons.trending_up,
                   isDark: isDark,
@@ -399,7 +418,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
               Expanded(
                 child: _buildStatCard(
                   label: 'Расходы',
-                  value: '₽${_formatNumber(expenses)}',
+                  value: '${Provider.of<SettingsProvider>(context, listen: false).currencySymbol}${_formatNumber(expenses)}',
                   color: const Color(0xFFef4444),
                   icon: Icons.trending_down,
                   isDark: isDark,
@@ -469,7 +488,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                       ),
                     ),
                     Text(
-                      '₽${stats['averageHourlyRate']}/час',
+                      '${Provider.of<SettingsProvider>(context, listen: false).currencySymbol}${stats['averageHourlyRate']}/час',
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,

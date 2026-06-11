@@ -1,6 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:http/http.dart' as http;
 import '../widgets/enhanced_glass_card.dart';
 import '../widgets/ios_time_picker.dart';
 import '../providers/settings_provider.dart';
@@ -120,6 +123,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                           color: isDark ? Colors.white : const Color(0xFF1e293b),
                         ),
                       ),
+                    ),
+                    // сканирование чека
+                    IconButton(
+                      icon: const Icon(Icons.document_scanner_rounded, color: Color(0xFF00e5b3)),
+                      onPressed: _scanReceipt,
+                      tooltip: 'Сканировать чек',
                     ),
                     // кнопка шаблона
                     IconButton(
@@ -735,6 +744,60 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         ),
       );
     }
+
+  Future<void> _scanReceipt() async {
+    final sub = context.read<SubscriptionProvider>();
+    if (!sub.canScanReceipt) {
+      sub.showPremiumDialog(context);
+      return;
+    }
+    final picker = ImagePicker();
+    final img = await picker.pickImage(
+      source: ImageSource.camera,
+      imageQuality: 80,
+      maxWidth: 1280,
+    );
+    if (img == null || !mounted) return;
+
+    final scaffoldMsg = ScaffoldMessenger.of(context);
+    scaffoldMsg.showSnackBar(const SnackBar(
+      content: Text('Анализирую чек…'),
+      duration: Duration(seconds: 10),
+    ));
+
+    try {
+      final bytes = await img.readAsBytes();
+      final b64 = base64Encode(bytes);
+      final resp = await http.post(
+        Uri.parse('https://flow-bot-rosy.vercel.app/api/ai/receipt'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'imageBase64': b64, 'mediaType': 'image/jpeg'}),
+      ).timeout(const Duration(seconds: 25));
+
+      scaffoldMsg.hideCurrentSnackBar();
+
+      if (resp.statusCode != 200) throw Exception('Сервер вернул ${resp.statusCode}');
+      final data = jsonDecode(resp.body) as Map<String, dynamic>;
+
+      if (!mounted) return;
+      setState(() {
+        if (data['amount'] != null) _amount = data['amount'].toString();
+        if (data['category'] != null) {
+          _isIncome = false;
+          _selectedCategory = data['category'].toString();
+        }
+        if (data['name'] != null) {
+          _commentController.text = data['name'].toString();
+        }
+      });
+      HapticFeedback.mediumImpact();
+    } catch (e) {
+      scaffoldMsg.hideCurrentSnackBar();
+      if (mounted) {
+        scaffoldMsg.showSnackBar(SnackBar(content: Text('Ошибка: $e')));
+      }
+    }
+  }
 
   Future<void> _saveAsTemplate() async {
     // проверка подписки

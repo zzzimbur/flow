@@ -3,6 +3,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 import '../widgets/enhanced_glass_card.dart';
 import '../widgets/ios_time_picker.dart';
 import '../providers/settings_provider.dart';
@@ -46,19 +47,19 @@ class _AddShiftScreenState extends State<AddShiftScreen> {
   Color _selectedColor = const Color(0xFF8b7ff5);
   IconData? _selectedIcon = Icons.work_outline;
   bool _isSaving = false;
+  bool _isListening = false;
+  final _speech = SpeechToText();
+  bool _speechAvail = false;
   DateTime _selectedDate = DateTime.now();
 
   @override
   void initState() {
     super.initState();
-    
-    // Инициализация из параметров
     _selectedDate = widget.initialDate ?? DateTime.now();
     _startTime = widget.initialTime ?? const TimeOfDay(hour: 9, minute: 0);
-    
-    // Конец смены - через 8 часов
     final endHour = (_startTime.hour + 8) % 24;
     _endTime = TimeOfDay(hour: endHour, minute: _startTime.minute);
+    _speech.initialize().then((ok) { if (mounted) setState(() => _speechAvail = ok); });
   }
 
   // Вычисленные свойства для часов и заработка
@@ -230,11 +231,38 @@ class _AddShiftScreenState extends State<AddShiftScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildTextField(
-                        'Название',
-                        _nameController,
-                        isDark,
-                        hint: 'Например: Дневная смена',
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Expanded(
+                            child: _buildTextField(
+                              'Название',
+                              _nameController,
+                              isDark,
+                              hint: 'Например: Дневная смена',
+                            ),
+                          ),
+                          if (_speechAvail) ...[
+                            const SizedBox(width: 8),
+                            GestureDetector(
+                              onTap: _toggleVoice,
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                width: 48, height: 48,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: _isListening
+                                      ? const Color(0xFFff4d6d)
+                                      : const Color(0xFF00e5b3).withOpacity(0.15),
+                                ),
+                                child: Icon(
+                                  _isListening ? Icons.stop_rounded : Icons.mic_rounded,
+                                  color: _isListening ? Colors.white : const Color(0xFF00e5b3),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                       const SizedBox(height: 16),
                       _buildTextField(
@@ -811,7 +839,7 @@ class _AddShiftScreenState extends State<AddShiftScreen> {
                     ],
                   ),
                   Text(
-                    '₽${calculatedEarnings.toStringAsFixed(0)}',
+                    '${Provider.of<SettingsProvider>(context, listen: false).currencySymbol}${calculatedEarnings.toStringAsFixed(0)}',
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
@@ -970,6 +998,26 @@ class _AddShiftScreenState extends State<AddShiftScreen> {
     
     if (picked != null) {
       setState(() => _selectedDate = picked);
+    }
+  }
+
+  Future<void> _toggleVoice() async {
+    final sub = context.read<SubscriptionProvider>();
+    if (!sub.canUseVoiceInput) { sub.showPremiumDialog(context); return; }
+    if (_isListening) {
+      await _speech.stop();
+      if (mounted) setState(() => _isListening = false);
+    } else {
+      setState(() => _isListening = true);
+      await _speech.listen(
+        onResult: (r) {
+          if (r.finalResult) {
+            _nameController.text = r.recognizedWords;
+            if (mounted) setState(() => _isListening = false);
+          }
+        },
+        localeId: 'ru_RU',
+      );
     }
   }
 
@@ -1277,9 +1325,17 @@ class _AddShiftScreenState extends State<AddShiftScreen> {
         _shiftRate = (data['shiftRate'] ?? 0.0).toDouble();
         _selectedColor = Color(data['color'] ?? 0xFF8b7ff5);
         
-        if (data['icon'] != null) {
-          _selectedIcon = AppIcons.fromKey(data['icon'] as String?);
-
+        final iconValue = data['icon'];
+        if (iconValue is int) {
+          // Иконка хранится как codePoint — подбираем из списка пикера
+          _selectedIcon = _icons.firstWhere(
+            (i) => i.codePoint == iconValue,
+            orElse: () => Icons.work_outline,
+          );
+        } else if (iconValue is String) {
+          _selectedIcon = AppIcons.fromKey(iconValue);
+        } else {
+          _selectedIcon = null;
         }
         
         _emojiController.text = data['emoji'] ?? '';

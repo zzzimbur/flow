@@ -16,6 +16,7 @@ import 'providers/goal_provider.dart';
 import 'providers/subscription_provider.dart';
 import 'services/ads_service.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,23 +25,12 @@ void main() async {
   
   // Инициализация Firebase
   try {
-    await Firebase.initializeApp();
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
     debugPrint('✅ Firebase инициализирован');
   } catch (e) {
     debugPrint('❌ Ошибка инициализации Firebase: $e');
-  }
-
-  // Инициализация Yandex Ads
-  try {
-    debugPrint('🔄 Инициализация Yandex Ads...');
-    await MobileAds.initialize();
-    debugPrint('✅ Yandex Ads инициализирован успешно');
-
-    // Инициализируем AdsService
-    await AdsService().initialize();
-    debugPrint('✅ AdsService инициализирован');
-  } catch (e) {
-    debugPrint('❌ Ошибка инициализации Yandex Ads: $e');
   }
 
   // Локализация
@@ -156,9 +146,6 @@ class _AppInitializerState extends State<AppInitializer> {
 
   Future<void> _initialize() async {
     debugPrint('🚀 Начало инициализации приложения');
-    
-    // Ждём 2 секунды для красивого splash screen
-    await Future.delayed(const Duration(seconds: 2));
     
     if (!mounted) return;
     
