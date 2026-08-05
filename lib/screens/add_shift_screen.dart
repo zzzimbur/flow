@@ -3,7 +3,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
-import '../widgets/enhanced_glass_card.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 import '../widgets/ios_time_picker.dart';
 import '../providers/settings_provider.dart';
 import '../providers/auth_provider.dart';
@@ -11,6 +11,7 @@ import '../services/template_service.dart';
 import '../models/template_model.dart';
 import '../providers/subscription_provider.dart';
 import '../widgets/app_icons.dart';
+import '../theme/coinka.dart';
 
 class AddShiftScreen extends StatefulWidget {
   final DateTime? initialDate;
@@ -46,19 +47,19 @@ class _AddShiftScreenState extends State<AddShiftScreen> {
   Color _selectedColor = const Color(0xFF8b7ff5);
   IconData? _selectedIcon = Icons.work_outline;
   bool _isSaving = false;
+  bool _isListening = false;
+  final _speech = SpeechToText();
+  bool _speechAvail = false;
   DateTime _selectedDate = DateTime.now();
 
   @override
   void initState() {
     super.initState();
-    
-    // Инициализация из параметров
     _selectedDate = widget.initialDate ?? DateTime.now();
     _startTime = widget.initialTime ?? const TimeOfDay(hour: 9, minute: 0);
-    
-    // Конец смены - через 8 часов
     final endHour = (_startTime.hour + 8) % 24;
     _endTime = TimeOfDay(hour: endHour, minute: _startTime.minute);
+    _speech.initialize().then((ok) { if (mounted) setState(() => _speechAvail = ok); });
   }
 
   // Вычисленные свойства для часов и заработка
@@ -144,516 +145,340 @@ class _AddShiftScreenState extends State<AddShiftScreen> {
     super.dispose();
   }
 
+  // ─── Coinka input decoration ──────────────────────────────────────────────
+
+  InputDecoration _coinkaInput({String? hint, String? label}) => InputDecoration(
+    hintText: hint,
+    labelText: label,
+    hintStyle: TextStyle(color: context.ckHint, fontSize: 15),
+    labelStyle: TextStyle(color: context.ckHint, fontSize: 13),
+    filled: true,
+    fillColor: context.ckS2,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: BorderSide(color: context.ckBorder),
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: BorderSide(color: context.ckBorder),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: const BorderSide(color: Coinka.accent, width: 1.5),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
-    final settings = Provider.of<SettingsProvider>(context);
-    final isDark = settings.isDarkMode;
+    final currency = context.read<SettingsProvider>().currencySymbol;
 
     return Scaffold(
-    body: AnimatedBackground(
-      isDark: isDark,
-      child: SafeArea(
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: Icon(
-                        Icons.close,
-                        color: isDark ? Colors.white : const Color(0xFF1e293b),
-                      ),
-                      onPressed: () {
-                        HapticFeedback.lightImpact();
-                        Navigator.pop(context);
-                      },
+      backgroundColor: context.ckBg,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 8, 16, 0),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: Icon(Icons.close_rounded, color: context.ckHint),
+                    onPressed: () { HapticFeedback.lightImpact(); Navigator.pop(context); },
+                  ),
+                  Expanded(
+                    child: Text('Новая смена', style: TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.w700, color: context.ckText,
+                    )),
+                  ),
+                  GestureDetector(
+                    onTap: _saveAsTemplate,
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      child: Text('📋', style: TextStyle(fontSize: 20)),
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Новая смена',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w600,
-                          color: isDark ? Colors.white : const Color(0xFF1e293b),
+                  ),
+                  GestureDetector(
+                    onTap: _loadFromTemplate,
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                      child: Text('📂', style: TextStyle(fontSize: 20)),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  if (_isSaving)
+                    const SizedBox(width: 20, height: 20,
+                      child: CircularProgressIndicator(color: Coinka.accent, strokeWidth: 2))
+                  else
+                    GestureDetector(
+                      onTap: _saveShift,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(colors: [Coinka.accent2, Coinka.accent]),
+                          borderRadius: BorderRadius.circular(20),
                         ),
+                        child: const Text('Готово', style: TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white,
+                        )),
                       ),
                     ),
-                    // кнопка шаблона
-                    IconButton(
-                      icon: const Icon(
-                        Icons.bookmark_add_outlined,
-                        color: Color(0xFF8b7ff5),
-                      ),
-                      onPressed: _saveAsTemplate,
-                      tooltip: 'Сохранить как шаблон',
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.bookmark_outlined,
-                        color: Color(0xFF8b7ff5),
-                      ),
-                      onPressed: _loadFromTemplate,
-                      tooltip: 'Загрузить из шаблона',
-                    ),
-                    const SizedBox(width: 8),
-                    if (_isSaving)
-                      const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8b7ff5)),
-                        ),
-                      )
-                    else
-                      TextButton(
-                        onPressed: _saveShift,
-                        child: const Text(
-                          'Готово',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF8b7ff5),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
+                ],
               ),
-              
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildTextField(
-                        'Название',
-                        _nameController,
-                        isDark,
-                        hint: 'Например: Дневная смена',
-                      ),
-                      const SizedBox(height: 16),
-                      _buildTextField(
-                        'Категория',
-                        _categoryController,
-                        isDark,
-                        hint: 'Например: Офис',
-                      ),
-                      const SizedBox(height: 24),
-                      // Дата
-                      _buildSectionTitle('Дата', isDark),
-                      const SizedBox(height: 12),
-                      EnhancedGlassCard(
-                        padding: const EdgeInsets.all(16),
-                        color: isDark
-                            ? const Color(0xFF1e293b).withOpacity(0.5)
-                            : Colors.white.withOpacity(0.7),
-                        child: InkWell(
-                          onTap: () => _selectDate(isDark),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Дата смены',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: isDark ? const Color(0xFF94a3b8) : const Color(0xFF64748b),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    '${_selectedDate.day}.${_selectedDate.month}.${_selectedDate.year}',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                      color: isDark ? Colors.white : const Color(0xFF1e293b),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              Icon(
-                                Icons.calendar_today,
-                                color: isDark ? const Color(0xFF8b7ff5) : const Color(0xFF64748b),
-                              ),
-                            ],
+            ),
+
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Название + голос
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _nameController,
+                            style: TextStyle(color: context.ckText, fontSize: 15),
+                            decoration: _coinkaInput(hint: 'Например: Дневная смена', label: 'Название'),
                           ),
                         ),
+                        const SizedBox(width: 10),
+                        GestureDetector(
+                          onTap: _toggleVoice,
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            width: 48, height: 48,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: _isListening ? Coinka.red : Coinka.accentDim,
+                            ),
+                            child: Icon(
+                              _isListening ? Icons.stop_rounded : Icons.mic_rounded,
+                              color: _isListening ? Colors.white : Coinka.accent,
+                              size: 22,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Категория
+                    TextField(
+                      controller: _categoryController,
+                      style: TextStyle(color: context.ckText, fontSize: 15),
+                      decoration: _coinkaInput(hint: 'Например: Офис', label: 'Категория'),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Эмодзи
+                    _coinkaSection('Эмодзи смены'),
+                    const SizedBox(height: 10),
+                    _coinkaCard(
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 56, height: 56,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: context.ckS2,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: context.ckBorder),
+                            ),
+                            child: Text(
+                              _emojiController.text.isNotEmpty ? _emojiController.text : '💼',
+                              style: const TextStyle(fontSize: 28),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: TextField(
+                              controller: _emojiController,
+                              maxLength: 2,
+                              style: TextStyle(fontSize: 28, color: context.ckText),
+                              textAlign: TextAlign.center,
+                              decoration: _coinkaInput(hint: '😊').copyWith(counterText: ''),
+                              onChanged: (v) { if (v.isNotEmpty) setState(() => _selectedIcon = null); setState(() {}); },
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 24),
-                      _buildSectionTitle('Длительность', isDark),
-                      const SizedBox(height: 12),
-                      EnhancedGlassCard(
-                        padding: const EdgeInsets.all(16),
-                        color: isDark 
-                            ? const Color(0xFF1e293b).withOpacity(0.5)
-                            : Colors.white.withOpacity(0.7),
-                        child: Column(
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Дата
+                    _coinkaSection('Дата'),
+                    const SizedBox(height: 10),
+                    GestureDetector(
+                      onTap: () => _selectDate(true),
+                      child: _coinkaCard(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                Text('Дата смены', style: TextStyle(fontSize: 12, color: context.ckHint)),
+                                const SizedBox(height: 4),
                                 Text(
-                                  'Весь день',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    color: isDark ? Colors.white : const Color(0xFF1e293b),
-                                  ),
-                                ),
-                                CupertinoSwitch(
-                                  value: _isAllDay,
-                                  activeColor: const Color(0xFF8b7ff5),
-                                  onChanged: (value) {
-                                    HapticFeedback.selectionClick();
-                                    setState(() => _isAllDay = value);
-                                  },
+                                  '${_selectedDate.day} ${coinkaMonths[_selectedDate.month - 1].toLowerCase()} ${_selectedDate.year}',
+                                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: context.ckText),
                                 ),
                               ],
                             ),
-                            if (!_isAllDay) ...[
-                              const SizedBox(height: 16),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: _buildTimePicker(
-                                      'Начало',
-                                      _startTime,
-                                      isDark,
-                                      (time) => setState(() => _startTime = time),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    child: _buildTimePicker(
-                                      'Конец',
-                                      _endTime,
-                                      isDark,
-                                      (time) => setState(() => _endTime = time),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 16),
-                              // НОВОЕ: Отображение подсчитанных часов
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                    colors: [
-                                      const Color(0xFF8b7ff5).withOpacity(0.15),
-                                      const Color(0xFF6c5ce7).withOpacity(0.1),
-                                    ],
-                                  ),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: const Color(0xFF8b7ff5).withOpacity(0.3),
-                                    width: 1,
-                                  ),
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    const Icon(
-                                      Icons.schedule_rounded,
-                                      color: Color(0xFF8b7ff5),
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      'Длительность: ',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: isDark ? const Color(0xFF94a3b8) : const Color(0xFF64748b),
-                                      ),
-                                    ),
-                                    Text(
-                                      '${calculatedHours.toStringAsFixed(1)} ч',
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w700,
-                                        color: Color(0xFF8b7ff5),
-                                        letterSpacing: 0.5,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ] else ...[
-                              const SizedBox(height: 16),
-                              // Отображение для "Весь день"
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                    colors: [
-                                      const Color(0xFF8b7ff5).withOpacity(0.15),
-                                      const Color(0xFF6c5ce7).withOpacity(0.1),
-                                    ],
-                                  ),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: const Color(0xFF8b7ff5).withOpacity(0.3),
-                                    width: 1,
-                                  ),
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    const Icon(
-                                      Icons.wb_sunny_rounded,
-                                      color: const Color(0xFF8b7ff5),
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      'Длительность: ',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: isDark ? const Color(0xFF94a3b8) : const Color(0xFF64748b),
-                                      ),
-                                    ),
-                                    const Text(
-                                      '24.0 ч',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w700,
-                                        color: Color(0xFF8b7ff5),
-                                        letterSpacing: 0.5,
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                            const Icon(Icons.calendar_today_rounded, color: Coinka.accent, size: 20),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Длительность
+                    _coinkaSection('Длительность'),
+                    const SizedBox(height: 10),
+                    _coinkaCard(
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('Весь день', style: TextStyle(fontSize: 15, color: context.ckText)),
+                              CupertinoSwitch(
+                                value: _isAllDay,
+                                activeColor: Coinka.accent,
+                                onChanged: (v) { HapticFeedback.selectionClick(); setState(() => _isAllDay = v); },
                               ),
                             ],
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-
-                      _buildSectionTitle('Тип оплаты', isDark),
-                      const SizedBox(height: 12),
-                      _buildPaymentTypeSelector(isDark),
-                      const SizedBox(height: 16),
-                      _buildPaymentFields(isDark),
-                      const SizedBox(height: 24),
-                      
-                      _buildSectionTitle('Оформление', isDark),
-                      const SizedBox(height: 12),
-                      EnhancedGlassCard(
-                        padding: const EdgeInsets.all(16),
-                        color: isDark 
-                            ? const Color(0xFF1e293b).withOpacity(0.5)
-                            : Colors.white.withOpacity(0.7),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Цвет',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: isDark ? const Color(0xFF94a3b8) : const Color(0xFF64748b),
-                              ),
+                          ),
+                          if (!_isAllDay) ...[
+                            const SizedBox(height: 14),
+                            Row(
+                              children: [
+                                Expanded(child: _buildTimePicker('Начало', _startTime, (t) => setState(() => _startTime = t))),
+                                const SizedBox(width: 12),
+                                Expanded(child: _buildTimePicker('Конец', _endTime, (t) => setState(() => _endTime = t))),
+                              ],
                             ),
-                            const SizedBox(height: 8),
-                            Wrap(
-                              spacing: 12,
-                              children: _colors.map((color) {
-                                final isSelected = color == _selectedColor;
-                                return GestureDetector(
-                                  onTap: () {
-                                    HapticFeedback.selectionClick();
-                                    setState(() => _selectedColor = color);
-                                  },
-                                  child: Container(
-                                    width: 44,
-                                    height: 44,
-                                    decoration: BoxDecoration(
-                                      color: color,
-                                      shape: BoxShape.circle,
-                                      border: isSelected
-                                          ? Border.all(
-                                              color: isDark ? Colors.white : const Color(0xFF1e293b),
-                                              width: 3,
-                                            )
-                                          : null,
-                                    ),
-                                    child: isSelected
-                                        ? const Icon(Icons.check, color: Colors.white)
-                                        : null,
-                                  ),
-                                );
-                              }).toList(),
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Иконка',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: isDark ? const Color(0xFF94a3b8) : const Color(0xFF64748b),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            // Разделитель
+                            const SizedBox(height: 12),
                             Container(
-                              height: 1,
-                              color: isDark ? const Color(0xFF334155) : const Color(0xFFe2e8f0),
-                            ),
-                            const SizedBox(height: 16),
-
-                            // Эмодзи
-                            Text(
-                              'Или используй эмодзи',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: isDark ? const Color(0xFF94a3b8) : const Color(0xFF64748b),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Coinka.accentDim,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.schedule_rounded, color: Coinka.accent, size: 18),
+                                  const SizedBox(width: 8),
+                                  Text('${calculatedHours.toStringAsFixed(1)} ч',
+                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Coinka.accent)),
+                                ],
                               ),
                             ),
-                            const SizedBox(height: 8),
-
-                            // Поле для эмодзи
-                            TextField(
-                              controller: _emojiController,
-                              maxLength: 2,
-                              style: TextStyle(
-                                fontSize: 32,
-                                color: isDark ? Colors.white : const Color(0xFF1e293b),
+                          ] else ...[
+                            const SizedBox(height: 10),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(color: Coinka.accentDim, borderRadius: BorderRadius.circular(10)),
+                              child: const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.wb_sunny_rounded, color: Coinka.accent, size: 18),
+                                  SizedBox(width: 8),
+                                  Text('24.0 ч', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Coinka.accent)),
+                                ],
                               ),
-                              textAlign: TextAlign.center,
-                              decoration: InputDecoration(
-                                hintText: '😊',
-                                hintStyle: TextStyle(
-                                  fontSize: 32,
-                                  color: isDark ? const Color(0xFF64748b) : const Color(0xFF94a3b8),
-                                ),
-                                filled: true,
-                                fillColor: isDark ? const Color(0xFF0f172a) : const Color(0xFFf1f5f9),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide.none,
-                                ),
-                                counterText: '',
-                              ),
-                              onChanged: (value) {
-                                // Если введён эмодзи, сбрасываем выбранную иконку
-                                if (value.isNotEmpty) {
-                                  setState(() => _selectedIcon = null);
-                                }
-                              },
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              'Нажми на поле и используй клавиатуру эмодзи',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: isDark ? const Color(0xFF64748b) : const Color(0xFF94a3b8),
-                                fontStyle: FontStyle.italic,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Wrap(
-                              spacing: 12,
-                              runSpacing: 12,
-                              children: _icons.map((icon) {
-                                final isSelected = icon == _selectedIcon;
-                                return GestureDetector(
-                                  onTap: () {
-                                    HapticFeedback.selectionClick();
-                                    setState(() => _selectedIcon = icon);
-                                  },
-                                  child: Container(
-                                    width: 44,
-                                    height: 44,
-                                    decoration: BoxDecoration(
-                                      color: isSelected
-                                          ? _selectedColor
-                                          : (isDark ? const Color(0xFF334155) : const Color(0xFFf1f5f9)),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Icon(
-                                      icon,
-                                      color: isSelected ? Colors.white : (isDark ? const Color(0xFF94a3b8) : const Color(0xFF64748b)),
-                                    ),
-                                  ),
-                                );
-                              }).toList(),
                             ),
                           ],
-                        ),
+                        ],
                       ),
-                      const SizedBox(height: 24),
-                      
-                      _buildSectionTitle('Заметка', isDark),
-                      const SizedBox(height: 12),
-                      _buildTextField(
-                        '',
-                        _noteController,
-                        isDark,
-                        hint: 'Добавьте заметку...',
-                        maxLines: 4,
-                      ),
-                      const SizedBox(height: 100),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Тип оплаты
+                    _coinkaSection('Тип оплаты'),
+                    const SizedBox(height: 10),
+                    _buildPaymentTypeSelector(),
+                    const SizedBox(height: 14),
+                    _buildPaymentFields(currency),
+                    const SizedBox(height: 20),
+
+                    // Заметка
+                    _coinkaSection('Заметка'),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: _noteController,
+                      maxLines: 3,
+                      style: TextStyle(color: context.ckText, fontSize: 15),
+                      decoration: _coinkaInput(hint: 'Добавьте заметку...'),
+                    ),
+                    const SizedBox(height: 32),
+                  ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildPaymentTypeSelector(bool isDark) {
-    return EnhancedGlassCard(
+  Widget _coinkaSection(String title) => Text(
+    title.toUpperCase(),
+    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: context.ckHint, letterSpacing: 0.8),
+  );
+
+  Widget _coinkaCard({required Widget child}) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: context.ckCard,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: context.ckBorder),
+    ),
+    child: child,
+  );
+
+  Widget _buildPaymentTypeSelector() {
+    return Container(
       padding: const EdgeInsets.all(4),
-      color: isDark 
-          ? const Color(0xFF1e293b).withOpacity(0.5)
-          : Colors.white.withOpacity(0.7),
+      decoration: BoxDecoration(
+        color: context.ckCard,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: context.ckBorder),
+      ),
       child: Row(
         children: [
-          _buildPaymentTypeChip('Почасовая', 'hourly', isDark),
-          _buildPaymentTypeChip('За смену', 'perShift', isDark),
-          _buildPaymentTypeChip('Без оплаты', 'unpaid', isDark),
+          _buildPaymentTypeChip('Почасовая', 'hourly'),
+          _buildPaymentTypeChip('За смену', 'perShift'),
+          _buildPaymentTypeChip('Без оплаты', 'unpaid'),
         ],
       ),
     );
   }
 
-  Widget _buildPaymentTypeChip(String label, String value, bool isDark) {
+  Widget _buildPaymentTypeChip(String label, String value) {
     final isSelected = _paymentType == value;
     return Expanded(
       child: GestureDetector(
-        onTap: () {
-          HapticFeedback.selectionClick();
-          setState(() => _paymentType = value);
-        },
-        child: Container(
+        onTap: () { HapticFeedback.selectionClick(); setState(() => _paymentType = value); },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: isSelected
-                ? const Color(0xFF8b7ff5)
-                : Colors.transparent,
+            color: isSelected ? Coinka.accent2.withOpacity(0.18) : Colors.transparent,
             borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: isSelected ? Coinka.accent2 : Colors.transparent, width: 1.5),
           ),
-          child: Text(
-            label,
+          child: Text(label,
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: isSelected
-                  ? Colors.white
-                  : (isDark ? const Color(0xFF94a3b8) : const Color(0xFF64748b)),
+              fontSize: 13, fontWeight: FontWeight.w600,
+              color: isSelected ? Coinka.accent2 : context.ckHint,
             ),
           ),
         ),
@@ -661,164 +486,65 @@ class _AddShiftScreenState extends State<AddShiftScreen> {
     );
   }
 
-  Widget _buildPaymentFields(bool isDark) {
+  Widget _buildPaymentFields(String currency) {
     if (_paymentType == 'unpaid') return const SizedBox.shrink();
 
-    return EnhancedGlassCard(
-      padding: const EdgeInsets.all(16),
-      color: isDark 
-          ? const Color(0xFF1e293b).withOpacity(0.5)
-          : Colors.white.withOpacity(0.7),
+    return _coinkaCard(
       child: Column(
         children: [
           if (_paymentType == 'hourly') ...[
-            _buildNumberField('Почасовая ставка', _hourlyRate, isDark, (val) => setState(() => _hourlyRate = val)),
+            _buildNumberField('Почасовая ставка', _hourlyRate, (v) => setState(() => _hourlyRate = v)),
             const SizedBox(height: 12),
-            
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            Text('Оплачиваемое время', style: TextStyle(fontSize: 13, color: context.ckHint)),
+            const SizedBox(height: 8),
+            Row(
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Оплачиваемое время',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: isDark ? const Color(0xFF94a3b8) : const Color(0xFF64748b),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 25),
-                Row(
-                  children: [
-                    // Часы
-                    Expanded(
-                      child: TextField(
-                        keyboardType: TextInputType.number,
-                        style: TextStyle(color: isDark ? Colors.white : const Color(0xFF1e293b)),
-                        controller: TextEditingController(
-                          text: _paidTime > 0 
-                              ? _paidTime.floor().toString() 
-                              : calculatedHours.floor().toString()
-                        ),
-                        decoration: InputDecoration(
-                          labelText: 'Часы',
-                          labelStyle: TextStyle(
-                            fontSize: 12,
-                            color: isDark ? const Color(0xFF64748b) : const Color(0xFF94a3b8),
-                          ),
-                          filled: true,
-                          fillColor: isDark ? const Color(0xFF0f172a) : const Color(0xFFf1f5f9),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
-                          ),
-                        ),
-                        onChanged: (val) {
-                          final hours = int.tryParse(val) ?? 0;
-                          final minutes = ((_paidTime - _paidTime.floor()) * 60).round();
-                          setState(() {
-                            _paidTime = hours + (minutes / 60.0);
-                          });
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    // Минуты
-                    Expanded(
-                      child: TextField(
-                        keyboardType: TextInputType.number,
-                        style: TextStyle(color: isDark ? Colors.white : const Color(0xFF1e293b)),
-                        controller: TextEditingController(
-                          text: _paidTime > 0
-                              ? ((_paidTime - _paidTime.floor()) * 60).round().toString()
-                              : ((calculatedHours - calculatedHours.floor()) * 60).round().toString()
-                        ),
-                        decoration: InputDecoration(
-                          labelText: 'Минуты',
-                          labelStyle: TextStyle(
-                            fontSize: 12,
-                            color: isDark ? const Color(0xFF64748b) : const Color(0xFF94a3b8),
-                          ),
-                          filled: true,
-                          fillColor: isDark ? const Color(0xFF0f172a) : const Color(0xFFf1f5f9),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
-                          ),
-                        ),
-                        onChanged: (val) {
-                          final minutes = int.tryParse(val) ?? 0;
-                          final hours = _paidTime > 0 ? _paidTime.floor() : calculatedHours.floor();
-                          setState(() {
-                            _paidTime = hours + (minutes / 60.0);
-                          });
-                        },
-                      ),
-                    ),
-                  ],
-                ),
+                Expanded(child: TextField(
+                  keyboardType: TextInputType.number,
+                  style: TextStyle(color: context.ckText, fontSize: 15),
+                  controller: TextEditingController(text: _paidTime > 0 ? _paidTime.floor().toString() : calculatedHours.floor().toString()),
+                  decoration: _coinkaInput(label: 'Часы'),
+                  onChanged: (val) {
+                    final h = int.tryParse(val) ?? 0;
+                    final m = ((_paidTime - _paidTime.floor()) * 60).round();
+                    setState(() => _paidTime = h + m / 60.0);
+                  },
+                )),
+                const SizedBox(width: 10),
+                Expanded(child: TextField(
+                  keyboardType: TextInputType.number,
+                  style: TextStyle(color: context.ckText, fontSize: 15),
+                  controller: TextEditingController(text: _paidTime > 0 ? ((_paidTime - _paidTime.floor()) * 60).round().toString() : ((calculatedHours - calculatedHours.floor()) * 60).round().toString()),
+                  decoration: _coinkaInput(label: 'Минуты'),
+                  onChanged: (val) {
+                    final m = int.tryParse(val) ?? 0;
+                    final h = _paidTime > 0 ? _paidTime.floor() : calculatedHours.floor();
+                    setState(() => _paidTime = h + m / 60.0);
+                  },
+                )),
               ],
             ),
           ] else ...[
-            _buildNumberField('Ставка за смену', _shiftRate, isDark, (val) => setState(() => _shiftRate = val)),
+            _buildNumberField('Ставка за смену', _shiftRate, (v) => setState(() => _shiftRate = v)),
           ],
           const SizedBox(height: 12),
-          _buildNumberField('Доплата', _bonus, isDark, (val) => setState(() => _bonus = val)),
+          _buildNumberField('Доплата', _bonus, (v) => setState(() => _bonus = v)),
           const SizedBox(height: 12),
-          _buildNumberField('Расходы', _expenses, isDark, (val) => setState(() => _expenses = val)),
-          
-          // НОВОЕ: Отображение итогового заработка
+          _buildNumberField('Расходы', _expenses, (v) => setState(() => _expenses = v)),
           if (_hourlyRate > 0 || _shiftRate > 0) ...[
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    const Color(0xFF10b981).withOpacity(0.15),
-                    const Color(0xFF059669).withOpacity(0.1),
-                  ],
-                ),
+                color: const Color(0x1A00E5B3),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: const Color(0xFF10b981).withOpacity(0.3),
-                  width: 1,
-                ),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.payments_rounded,
-                        color: Color(0xFF10b981),
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Итого заработок:',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: isDark ? const Color(0xFF94a3b8) : const Color(0xFF64748b),
-                        ),
-                      ),
-                    ],
-                  ),
-                  Text(
-                    '₽${calculatedEarnings.toStringAsFixed(0)}',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF10b981),
-                      letterSpacing: 0.5,
-                    ),
-                  ),
+                  Text('Итого заработок:', style: TextStyle(fontSize: 14, color: context.ckHint)),
+                  Text('${calculatedEarnings.toStringAsFixed(0)} $currency',
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Coinka.accent)),
                 ],
               ),
             ),
@@ -828,134 +554,46 @@ class _AddShiftScreenState extends State<AddShiftScreen> {
     );
   }
 
-  Widget _buildNumberField(String label, double value, bool isDark, Function(double) onChanged) {
+  Widget _buildNumberField(String label, double value, Function(double) onChanged) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 14,
-            color: isDark ? const Color(0xFF94a3b8) : const Color(0xFF64748b),
-          ),
-        ),
-        const SizedBox(height: 8),
+        Text(label, style: TextStyle(fontSize: 13, color: context.ckHint)),
+        const SizedBox(height: 6),
         TextField(
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          style: TextStyle(color: isDark ? Colors.white : const Color(0xFF1e293b)),
-          decoration: InputDecoration(
-            hintText: '0.00',
-            filled: true,
-            fillColor: isDark ? const Color(0xFF0f172a) : const Color(0xFFf1f5f9),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
-            ),
-          ),
-          onChanged: (val) {
-            final parsed = double.tryParse(val) ?? 0.0;
-            onChanged((parsed * 100).roundToDouble() / 100);
-          },
+          style: TextStyle(color: context.ckText, fontSize: 15),
+          decoration: _coinkaInput(hint: '0'),
+          onChanged: (val) => onChanged((double.tryParse(val) ?? 0.0)),
         ),
       ],
     );
   }
 
-  Widget _buildTimePicker(String label, TimeOfDay time, bool isDark, Function(TimeOfDay) onChanged) {
+  Widget _buildTimePicker(String label, TimeOfDay time, Function(TimeOfDay) onChanged) {
     return GestureDetector(
       onTap: () async {
         HapticFeedback.lightImpact();
-        
-        final picked = await IOSTimePicker.show(
-          context: context,
-          initialTime: time,
-          isDark: isDark,
-        );
-        
-        if (picked != null) {
-          onChanged(picked);
-        }
+        final picked = await IOSTimePicker.show(context: context, initialTime: time, isDark: true);
+        if (picked != null) onChanged(picked);
       },
       child: Container(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF0f172a) : const Color(0xFFf1f5f9),
-          borderRadius: BorderRadius.circular(12),
+          color: context.ckS2,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: context.ckBorder),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color: isDark ? const Color(0xFF94a3b8) : const Color(0xFF64748b),
-              ),
-            ),
+            Text(label, style: TextStyle(fontSize: 11, color: context.ckHint)),
             const SizedBox(height: 4),
-            Text(
-              '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: isDark ? Colors.white : const Color(0xFF1e293b),
-              ),
-            ),
+            Text('${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}',
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Coinka.accent)),
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildSectionTitle(String title, bool isDark) {
-    return Text(
-      title,
-      style: TextStyle(
-        fontSize: 16,
-        fontWeight: FontWeight.w600,
-        color: isDark ? Colors.white : const Color(0xFF1e293b),
-      ),
-    );
-  }
-
-  Widget _buildTextField(
-    String label,
-    TextEditingController controller,
-    bool isDark, {
-    String? hint,
-    int maxLines = 1,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (label.isNotEmpty) ...[
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 14,
-              color: isDark ? const Color(0xFF94a3b8) : const Color(0xFF64748b),
-            ),
-          ),
-          const SizedBox(height: 8),
-        ],
-        TextField(
-          controller: controller,
-          maxLines: maxLines,
-          style: TextStyle(color: isDark ? Colors.white : const Color(0xFF1e293b)),
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: TextStyle(
-              color: isDark ? const Color(0xFF64748b) : const Color(0xFF94a3b8),
-            ),
-            filled: true,
-            fillColor: isDark ? const Color(0xFF0f172a) : const Color(0xFFf1f5f9),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
-            ),
-          ),
-        ),
-      ],
     );
   }
 
@@ -970,6 +608,30 @@ class _AddShiftScreenState extends State<AddShiftScreen> {
     
     if (picked != null) {
       setState(() => _selectedDate = picked);
+    }
+  }
+
+  Future<void> _toggleVoice() async {
+    final sub = context.read<SubscriptionProvider>();
+    if (!sub.canUseVoiceInput) { sub.showPremiumDialog(context, 'voice_input'); return; }
+    if (!_speechAvail) {
+      _showSnackbar('Распознавание речи недоступно на этом устройстве', isError: true);
+      return;
+    }
+    if (_isListening) {
+      await _speech.stop();
+      if (mounted) setState(() => _isListening = false);
+    } else {
+      setState(() => _isListening = true);
+      await _speech.listen(
+        onResult: (r) {
+          if (r.finalResult) {
+            _nameController.text = r.recognizedWords;
+            if (mounted) setState(() => _isListening = false);
+          }
+        },
+        localeId: 'ru_RU',
+      );
     }
   }
 
@@ -1133,6 +795,10 @@ class _AddShiftScreenState extends State<AddShiftScreen> {
         'name': _nameController.text.trim(),
         'category': _categoryController.text.trim(),
         'isAllDay': _isAllDay,
+        'startHour': _startTime.hour,
+        'startMinute': _startTime.minute,
+        'endHour': _endTime.hour,
+        'endMinute': _endTime.minute,
         'paymentType': _paymentType,
         'hourlyRate': _hourlyRate,
         'paidTime': _paidTime > 0 && _paidTime != calculatedHours ? _paidTime : calculatedHours,
@@ -1269,6 +935,12 @@ class _AddShiftScreenState extends State<AddShiftScreen> {
         _nameController.text = data['name'] ?? '';
         _categoryController.text = data['category'] ?? '';
         _isAllDay = data['isAllDay'] ?? false;
+        if (data['startHour'] != null) {
+          _startTime = TimeOfDay(hour: data['startHour'] as int, minute: (data['startMinute'] ?? 0) as int);
+        }
+        if (data['endHour'] != null) {
+          _endTime = TimeOfDay(hour: data['endHour'] as int, minute: (data['endMinute'] ?? 0) as int);
+        }
         _paymentType = data['paymentType'] ?? 'hourly';
         _hourlyRate = (data['hourlyRate'] ?? 0.0).toDouble();
         _paidTime = (data['paidTime'] ?? 0.0).toDouble();
@@ -1277,9 +949,17 @@ class _AddShiftScreenState extends State<AddShiftScreen> {
         _shiftRate = (data['shiftRate'] ?? 0.0).toDouble();
         _selectedColor = Color(data['color'] ?? 0xFF8b7ff5);
         
-        if (data['icon'] != null) {
-          _selectedIcon = AppIcons.fromKey(data['icon'] as String?);
-
+        final iconValue = data['icon'];
+        if (iconValue is int) {
+          // Иконка хранится как codePoint — подбираем из списка пикера
+          _selectedIcon = _icons.firstWhere(
+            (i) => i.codePoint == iconValue,
+            orElse: () => Icons.work_outline,
+          );
+        } else if (iconValue is String) {
+          _selectedIcon = AppIcons.fromKey(iconValue);
+        } else {
+          _selectedIcon = null;
         }
         
         _emojiController.text = data['emoji'] ?? '';

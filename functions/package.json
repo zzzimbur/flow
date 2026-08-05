@@ -1,0 +1,9 @@
+{
+  "name": "flow-bot",
+  "description": "Flow Telegram bot + mini app backend (Vercel)",
+  "engines": { "node": "20" },
+  "dependencies": {
+    "firebase-admin": "^13.0.0"
+  },
+  "private": true
+}

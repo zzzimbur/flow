@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
-import 'dart:ui';
 import '../providers/settings_provider.dart';
 import '../providers/auth_provider.dart';
 import '../models/task_model.dart';
@@ -29,10 +28,10 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
   DateTime _selectedDate = DateTime.now();
   DateTime _focusedMonth = DateTime.now();
   CalendarViewType _viewType = CalendarViewType.month;
-  
+
   final PageController _monthPageController = PageController(initialPage: 1000);
   final PageController _weekPageController = PageController(initialPage: 1000);
-  
+
   Map<DateTime, List<dynamic>> _events = {};
   bool _isLoading = true;
   // Хранит месяц, который сейчас загружается — защита от race condition
@@ -43,7 +42,7 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
   double _monthEarnings = 0.0;
   double _monthHours = 0.0;
   int _monthTasks = 0;
-  
+
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
 
@@ -166,14 +165,17 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
                   _buildStatsBar(isDark),
                   const SizedBox(height: 8),
                   Expanded(
-                    child: _isLoading
-                        ? _buildLoadingState(isDark)
-                        : FadeTransition(
-                            opacity: _fadeAnimation,
-                            child: _viewType == CalendarViewType.month
-                                ? _buildMonthViewWithSwipe(isDark)
-                                : _buildWeekViewWithSwipe(isDark),
-                          ),
+                    child: Stack(
+                      children: [
+                        FadeTransition(
+                          opacity: _fadeAnimation,
+                          child: _viewType == CalendarViewType.month
+                              ? _buildMonthViewWithSwipe(isDark)
+                              : _buildWeekViewWithSwipe(isDark),
+                        ),
+                        if (_isLoading) _buildLoadingState(isDark),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -190,9 +192,16 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
           color: isDark
-              ? Colors.white.withOpacity(0.1)
-              : Colors.white.withOpacity(0.7),
+              ? const Color(0xFF1a1a2e)
+              : Colors.white,
           shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.15),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: const CircularProgressIndicator(
           valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8b7ff5)),
@@ -235,52 +244,47 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
               ],
             ),
           ),
-          
-          ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? Colors.white.withOpacity(0.08)
-                      : Colors.white.withOpacity(0.75),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: isDark
-                        ? Colors.white.withOpacity(0.12)
-                        : Colors.white.withOpacity(0.5),
-                    width: 1,
-                  ),
+
+          // View toggle — solid container, no blur
+          Container(
+            decoration: BoxDecoration(
+              color: isDark
+                  ? const Color(0xFF1a1a2e)
+                  : Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(isDark ? 0.3 : 0.08),
+                  blurRadius: 12,
+                  offset: const Offset(0, 3),
                 ),
-                child: Row(
-                  children: [
-                    _buildViewButton(
-                      icon: Icons.calendar_month,
-                      isSelected: _viewType == CalendarViewType.month,
-                      onTap: () {
-                        HapticFeedback.selectionClick();
-                        setState(() => _viewType = CalendarViewType.month);
-                      },
-                      isDark: isDark,
-                    ),
-                    _buildViewButton(
-                      icon: Icons.view_week,
-                      isSelected: _viewType == CalendarViewType.week,
-                      // isPremium: true,
-                      onTap: () {
-                        HapticFeedback.selectionClick();
-                        setState(() => _viewType = CalendarViewType.week);
-                      },
-                      isDark: isDark,
-                    ),
-                  ],
+              ],
+            ),
+            child: Row(
+              children: [
+                _buildViewButton(
+                  icon: Icons.calendar_month,
+                  isSelected: _viewType == CalendarViewType.month,
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    setState(() => _viewType = CalendarViewType.month);
+                  },
+                  isDark: isDark,
                 ),
-              ),
+                _buildViewButton(
+                  icon: Icons.view_week,
+                  isSelected: _viewType == CalendarViewType.week,
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    setState(() => _viewType = CalendarViewType.week);
+                  },
+                  isDark: isDark,
+                ),
+              ],
             ),
           ),
           const SizedBox(width: 12),
-          
+
           GestureDetector(
             onTap: () {
               HapticFeedback.mediumImpact();
@@ -289,13 +293,13 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
                 _selectedDate = today;
                 _focusedMonth = today;
               });
-              
+
               if (_viewType == CalendarViewType.month) {
                 _monthPageController.jumpToPage(1000);
               } else {
                 _weekPageController.jumpToPage(1000);
               }
-              
+
               _loadData();
             },
             child: Container(
@@ -355,109 +359,132 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
   }
 
   Widget _buildStatsBar(bool isDark) {
+    final accent = Provider.of<SettingsProvider>(context, listen: false).accentColor;
+    final currency = Provider.of<SettingsProvider>(context, listen: false).currencySymbol;
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: isDark
-                  ? Colors.white.withOpacity(0.07)
-                  : Colors.white.withOpacity(0.72),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: isDark
-                    ? Colors.white.withOpacity(0.2)
-                    : Colors.white.withOpacity(0.5),
-                width: 1.5,
-              ),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+      child: Container(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1a1a2e) : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(isDark ? 0.3 : 0.07),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildStatItem(
-                  '₽${_monthEarnings.toStringAsFixed(0)}',
-                  'Заработано',
-                  Icons.payments_rounded,
-                  const Color(0xFF10b981),
-                  isDark,
-                ),
-                Container(
-                  width: 1,
-                  height: 28,
-                  color: isDark
-                      ? Colors.white.withOpacity(0.12)
-                      : Colors.black.withOpacity(0.08),
-                ),
-                _buildStatItem(
-                  '${_monthHours.toStringAsFixed(0)}ч',
-                  'Отработано',
-                  Icons.schedule_rounded,
-                  const Color(0xFF8b7ff5),
-                  isDark,
-                ),
-                Container(
-                  width: 1,
-                  height: 28,
-                  color: isDark
-                      ? Colors.white.withOpacity(0.12)
-                      : Colors.black.withOpacity(0.08),
-                ),
-                _buildStatItem(
-                  '$_monthTasks',
-                  'Задач',
-                  Icons.check_circle_outline,
-                  const Color(0xFF3b82f6),
-                  isDark,
-                ),
-              ],
+          ],
+        ),
+        child: Row(
+          children: [
+            _buildStatItem(
+              '$currency${_monthEarnings.toStringAsFixed(0)}',
+              'Заработано',
+              Icons.payments_rounded,
+              const Color(0xFF10b981),
+              isDark,
+              isFirst: true,
             ),
-          ),
+            _buildStatDivider(isDark),
+            _buildStatItem(
+              '${_monthHours.toStringAsFixed(0)}ч',
+              'Отработано',
+              Icons.schedule_rounded,
+              accent,
+              isDark,
+            ),
+            _buildStatDivider(isDark),
+            _buildStatItem(
+              '$_monthTasks',
+              'Задач',
+              Icons.check_circle_outline,
+              const Color(0xFF3b82f6),
+              isDark,
+              isLast: true,
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildStatItem(String value, String label, IconData icon, Color color, bool isDark) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(6),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.15),
-            borderRadius: BorderRadius.circular(10),
+  Widget _buildStatDivider(bool isDark) {
+    return Container(
+      width: 1,
+      height: 44,
+      color: isDark
+          ? Colors.white.withOpacity(0.08)
+          : Colors.black.withOpacity(0.06),
+    );
+  }
+
+  Widget _buildStatItem(
+    String value,
+    String label,
+    IconData icon,
+    Color color,
+    bool isDark, {
+    bool isFirst = false,
+    bool isLast = false,
+  }) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+        decoration: BoxDecoration(
+          border: Border(
+            left: BorderSide(color: color, width: 3),
           ),
-          child: Icon(icon, color: color, size: 18),
+          borderRadius: BorderRadius.only(
+            topLeft: isFirst ? const Radius.circular(20) : Radius.zero,
+            bottomLeft: isFirst ? const Radius.circular(20) : Radius.zero,
+            topRight: isLast ? const Radius.circular(20) : Radius.zero,
+            bottomRight: isLast ? const Radius.circular(20) : Radius.zero,
+          ),
         ),
-        const SizedBox(width: 10),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                color: isDark ? Colors.white : const Color(0xFF1e293b),
-                letterSpacing: -0.3,
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(8),
               ),
+              child: Icon(icon, color: color, size: 16),
             ),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
-                color: isDark
-                    ? Colors.white.withOpacity(0.5)
-                    : Colors.black.withOpacity(0.4),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    value,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: isDark ? Colors.white : const Color(0xFF1e293b),
+                      letterSpacing: -0.3,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      color: isDark
+                          ? Colors.white.withOpacity(0.45)
+                          : Colors.black.withOpacity(0.4),
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ),
             ),
           ],
         ),
-      ],
+      ),
     );
   }
 
@@ -481,7 +508,7 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
         final monthsOffset = index - 1000;
         final baseMonth = DateTime(DateTime.now().year, DateTime.now().month, 1);
         final month = DateTime(baseMonth.year, baseMonth.month + monthsOffset, 1);
-        
+
         return SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
           child: Column(
@@ -498,18 +525,18 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
 
   Widget _buildWeekViewWithSwipe(bool isDark) {
     final subscriptionProvider = Provider.of<SubscriptionProvider>(context, listen: false);
-  
+
     if (!subscriptionProvider.canAccessWeekView) {
       return _buildPremiumRequiredView();
     }
-  
+
     return PageView.builder(
       controller: _weekPageController,
       onPageChanged: (index) {
         final weeksOffset = index - 1000;
         final now = DateTime.now();
         final weekStart = _getWeekStart(now).add(Duration(days: weeksOffset * 7));
-        
+
         setState(() {
           _focusedMonth = weekStart;
         });
@@ -518,7 +545,7 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
         final weeksOffset = index - 1000;
         final now = DateTime.now();
         final weekStart = _getWeekStart(now).add(Duration(days: weeksOffset * 7));
-        
+
         return CalendarWeekView(
           selectedDate: _selectedDate,
           weekStart: weekStart,
@@ -543,7 +570,7 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
   List<ShiftModel> _getShiftsForWeek(DateTime weekStart) {
     final weekEnd = weekStart.add(const Duration(days: 7));
     return _events.entries
-        .where((entry) => 
+        .where((entry) =>
           entry.key.isAfter(weekStart.subtract(const Duration(days: 1))) &&
           entry.key.isBefore(weekEnd))
         .expand((entry) => entry.value)
@@ -554,7 +581,7 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
   List<TaskModel> _getTasksForWeek(DateTime weekStart) {
     final weekEnd = weekStart.add(const Duration(days: 7));
     return _events.entries
-        .where((entry) => 
+        .where((entry) =>
           entry.key.isAfter(weekStart.subtract(const Duration(days: 1))) &&
           entry.key.isBefore(weekEnd))
         .expand((entry) => entry.value)
@@ -569,7 +596,7 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
   Widget _buildMonthGrid(DateTime month, bool isDark) {
     final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
     final firstWeekday = DateTime(month.year, month.month, 1).weekday;
-    
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 0),
       child: Column(
@@ -596,7 +623,7 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
             }).toList(),
           ),
           const SizedBox(height: 12),
-          
+
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -612,7 +639,7 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
               if (dayOffset < 0 || dayOffset >= daysInMonth) {
                 return const SizedBox();
               }
-              
+
               final day = dayOffset + 1;
               final date = DateTime(month.year, month.month, day);
               final isSelected = _selectedDate.year == date.year &&
@@ -622,7 +649,7 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
                   DateTime.now().month == date.month &&
                   DateTime.now().day == date.day;
               final hasEvents = _events[date]?.isNotEmpty ?? false;
-              
+
               return GestureDetector(
                 onTap: () {
                   HapticFeedback.selectionClick();
@@ -669,7 +696,7 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
                           ),
                         ),
                       ),
-                      
+
                       if (hasEvents && !isSelected)
                         Positioned(
                           bottom: 6,
@@ -694,10 +721,10 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
   List<Widget> _buildEventIndicators(DateTime date, bool isDark) {
     final events = _events[date] ?? [];
     final indicators = <Widget>[];
-    
+
     final hasShifts = events.any((e) => e is ShiftModel);
     final hasTasks = events.any((e) => e is TaskModel);
-    
+
     if (hasShifts) {
       indicators.add(
         Container(
@@ -711,7 +738,7 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
         ),
       );
     }
-    
+
     if (hasTasks) {
       indicators.add(
         Container(
@@ -725,69 +752,62 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
         ),
       );
     }
-    
+
     return indicators;
   }
 
   Widget _buildDayEvents(bool isDark) {
     final dateKey = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
     final dayEvents = _events[dateKey] ?? [];
-    
+
     if (dayEvents.isEmpty) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-          child: Container(
-            padding: const EdgeInsets.all(40),
-            decoration: BoxDecoration(
-              color: isDark
-                  ? Colors.white.withOpacity(0.05)
-                  : Colors.white.withOpacity(0.65),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: isDark
-                    ? Colors.white.withOpacity(0.1)
-                    : Colors.white.withOpacity(0.3),
-                width: 1.5,
-              ),
+      return Container(
+        padding: const EdgeInsets.all(40),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1a1a2e) : Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(isDark ? 0.25 : 0.06),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
             ),
-            child: Center(
-              child: Column(
-                children: [
-                  Text(
-                    '📅',
-                    style: const TextStyle(fontSize: 40),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Нет событий',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: isDark
-                          ? Colors.white.withOpacity(0.5)
-                          : Colors.black.withOpacity(0.4),
-                    ),
-                  ),
-                ],
+          ],
+        ),
+        child: Center(
+          child: Column(
+            children: [
+              const Text(
+                '📅',
+                style: TextStyle(fontSize: 40),
               ),
-            ),
+              const SizedBox(height: 12),
+              Text(
+                'Нет событий',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: isDark
+                      ? Colors.white.withOpacity(0.5)
+                      : Colors.black.withOpacity(0.4),
+                ),
+              ),
+            ],
           ),
         ),
       );
     }
-    
+
     dayEvents.sort((a, b) {
       final aTime = a is ShiftModel ? a.startTime : (a as TaskModel).startTime;
       final bTime = b is ShiftModel ? b.startTime : (b as TaskModel).startTime;
-      
+
       if (aTime == null && bTime == null) return 0;
       if (aTime == null) return 1;
       if (bTime == null) return -1;
       return aTime.compareTo(bTime);
     });
-    
+
     return Column(
       children: dayEvents.map((event) {
         if (event is ShiftModel) {
@@ -807,109 +827,87 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
-        child: ClipRRect(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1a1a2e) : Colors.white,
           borderRadius: BorderRadius.circular(20),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    shift.color.withOpacity(0.25),
-                    shift.color.withOpacity(0.15),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: shift.color.withOpacity(0.4),
-                  width: 1.5,
-                ),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 4,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [shift.color, shift.color.withOpacity(0.7)],
-                      ),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          shift.name,
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                            color: isDark ? Colors.white : const Color(0xFF1e293b),
-                            letterSpacing: -0.3,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.access_time,
-                              size: 14,
-                              color: isDark
-                                  ? Colors.white.withOpacity(0.6)
-                                  : Colors.black.withOpacity(0.5),
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              '${shift.timeRange} • ${_calculateShiftHours(shift).toStringAsFixed(1)}ч',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                                color: isDark
-                                    ? Colors.white.withOpacity(0.6)
-                                    : Colors.black.withOpacity(0.5),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [shift.color, shift.color.withOpacity(0.8)],
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: shift.color.withOpacity(0.3),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Text(
-                      '₽${shift.totalEarnings.toStringAsFixed(0)}',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
+          border: Border(
+            left: BorderSide(color: shift.color, width: 4),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: shift.color.withOpacity(0.15),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      shift.name,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? Colors.white : const Color(0xFF1e293b),
                         letterSpacing: -0.3,
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.access_time,
+                          size: 14,
+                          color: isDark
+                              ? Colors.white.withOpacity(0.6)
+                              : Colors.black.withOpacity(0.5),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${shift.timeRange} • ${_calculateShiftHours(shift).toStringAsFixed(1)}ч',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: isDark
+                                ? Colors.white.withOpacity(0.6)
+                                : Colors.black.withOpacity(0.5),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: shift.color,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: shift.color.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Text(
+                  '${Provider.of<SettingsProvider>(context, listen: false).currencySymbol}${shift.totalEarnings.toStringAsFixed(0)}',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -917,6 +915,7 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
   }
 
   Widget _buildTaskCard(TaskModel task, bool isDark) {
+    final priorityColor = task.getPriorityColor();
     return GestureDetector(
       onTap: () {
         HapticFeedback.mediumImpact();
@@ -924,181 +923,162 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
-        child: ClipRRect(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1a1a2e) : Colors.white,
           borderRadius: BorderRadius.circular(20),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: isDark
-                      ? [
-                          Colors.white.withOpacity(0.1),
-                          Colors.white.withOpacity(0.05),
-                        ]
-                      : [
-                          Colors.white.withOpacity(0.9),
-                          Colors.white.withOpacity(0.7),
-                        ],
-                ),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: task.getPriorityColor().withOpacity(0.3),
-                  width: 1.5,
-                ),
-              ),
-              child: Row(
-                children: [
-                  GestureDetector(
-                    onTap: () async {
-                      HapticFeedback.mediumImpact();
-                      
-                      try {
-                        final authProvider = context.read<AuthProvider>();
-                        final userId = authProvider.userId;
-                        
-                        // Обновляем статус в Firebase
-                        await FirebaseFirestore.instance
-                            .collection('users')
-                            .doc(userId)
-                            .collection('tasks')
-                            .doc(task.id)
-                            .update({'isDone': !task.isDone});
-                        
-                        // Перезагружаем данные
-                        await _loadData();
-                        
-                        // Показываем снекбар
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Row(
-                                children: [
-                                  Icon(
-                                    task.isDone ? Icons.cancel : Icons.check_circle,
-                                    color: Colors.white,
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Text(task.isDone ? 'Задача не выполнена' : 'Задача выполнена!'),
-                                ],
-                              ),
-                              backgroundColor: task.isDone ? const Color(0xFFf59e0b) : const Color(0xFF10b981),
-                              behavior: SnackBarBehavior.floating,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              margin: const EdgeInsets.all(16),
-                              duration: const Duration(seconds: 2),
-                            ),
-                          );
-                        }
-                      } catch (e) {
-                        print('Ошибка обновления задачи: $e');
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Row(
-                                children: const [
-                                  Icon(Icons.error, color: Colors.white),
-                                  SizedBox(width: 12),
-                                  Text('Ошибка обновления задачи'),
-                                ],
-                              ),
-                              backgroundColor: const Color(0xFFef4444),
-                              behavior: SnackBarBehavior.floating,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              margin: const EdgeInsets.all(16),
-                            ),
-                          );
-                        }
-                      }
-                    },
-                    child: Container(
-                      width: 28,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        gradient: task.isDone
-                            ? LinearGradient(
-                                colors: [
-                                  task.getPriorityColor(),
-                                  task.getPriorityColor().withOpacity(0.8),
-                                ],
-                              )
-                            : null,
-                        border: Border.all(
-                          color: task.getPriorityColor(),
-                          width: 2.5,
-                        ),
-                        shape: BoxShape.circle,
-                      ),
-                      child: task.isDone
-                          ? const Icon(Icons.check, size: 16, color: Colors.white)
-                          : null,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          task.title,
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: isDark ? Colors.white : const Color(0xFF1e293b),
-                            letterSpacing: -0.3,
-                            decoration: task.isDone ? TextDecoration.lineThrough : null,
-                          ),
-                        ),
-                        if (task.time != null) ...[
-                          const SizedBox(height: 6),
-                          Row(
+          border: Border(
+            left: BorderSide(color: priorityColor, width: 4),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(isDark ? 0.25 : 0.07),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Row(
+            children: [
+              GestureDetector(
+                onTap: () async {
+                  HapticFeedback.mediumImpact();
+
+                  try {
+                    final authProvider = context.read<AuthProvider>();
+                    final userId = authProvider.userId;
+
+                    // Обновляем статус в Firebase
+                    await FirebaseFirestore.instance
+                        .collection('users')
+                        .doc(userId)
+                        .collection('tasks')
+                        .doc(task.id)
+                        .update({'isDone': !task.isDone});
+
+                    // Перезагружаем данные
+                    await _loadData();
+
+                    // Показываем снекбар
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Row(
                             children: [
                               Icon(
-                                Icons.access_time,
-                                size: 14,
-                                color: isDark
-                                    ? Colors.white.withOpacity(0.5)
-                                    : Colors.black.withOpacity(0.4),
+                                task.isDone ? Icons.cancel : Icons.check_circle,
+                                color: Colors.white,
                               ),
-                              const SizedBox(width: 4),
-                              Text(
-                                task.timeRangeString,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                  color: isDark
-                                      ? Colors.white.withOpacity(0.5)
-                                      : Colors.black.withOpacity(0.4),
-                                ),
-                              ),
+                              const SizedBox(width: 12),
+                              Text(task.isDone ? 'Задача не выполнена' : 'Задача выполнена!'),
                             ],
                           ),
-                        ],
-                      ],
+                          backgroundColor: task.isDone ? const Color(0xFFf59e0b) : const Color(0xFF10b981),
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          margin: const EdgeInsets.all(16),
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    print('Ошибка обновления задачи: $e');
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Row(
+                            children: const [
+                              Icon(Icons.error, color: Colors.white),
+                              SizedBox(width: 12),
+                              Text('Ошибка обновления задачи'),
+                            ],
+                          ),
+                          backgroundColor: const Color(0xFFef4444),
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          margin: const EdgeInsets.all(16),
+                        ),
+                      );
+                    }
+                  }
+                },
+                child: Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: task.isDone ? priorityColor : null,
+                    border: Border.all(
+                      color: priorityColor,
+                      width: 2.5,
                     ),
+                    shape: BoxShape.circle,
                   ),
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: task.getPriorityColor().withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(
-                      task.getPriorityIcon(),
-                      size: 18,
-                      color: task.getPriorityColor(),
-                    ),
-                  ),
-                ],
+                  child: task.isDone
+                      ? const Icon(Icons.check, size: 16, color: Colors.white)
+                      : null,
+                ),
               ),
-            ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      task.title,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? Colors.white : const Color(0xFF1e293b),
+                        letterSpacing: -0.3,
+                        decoration: task.isDone ? TextDecoration.lineThrough : null,
+                      ),
+                    ),
+                    if (task.time != null) ...[
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.access_time,
+                            size: 14,
+                            color: isDark
+                                ? Colors.white.withOpacity(0.5)
+                                : Colors.black.withOpacity(0.4),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            task.timeRangeString,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: isDark
+                                  ? Colors.white.withOpacity(0.5)
+                                  : Colors.black.withOpacity(0.4),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: priorityColor.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  task.getPriorityIcon(),
+                  size: 18,
+                  color: priorityColor,
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -1130,7 +1110,7 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
   Future<void> _handleEventMove(Object event, DateTime newDate, TimeOfDay newTime) async {
     final authProvider = context.read<AuthProvider>();
     final userId = authProvider.userId;
-    
+
     try {
       if (event is ShiftModel) {
         final newStartTime = DateTime(
@@ -1139,7 +1119,7 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
         );
         final duration = event.endTime.difference(event.startTime);
         final newEndTime = newStartTime.add(duration);
-        
+
         await FirebaseFirestore.instance
             .collection('users')
             .doc(userId)
@@ -1150,19 +1130,19 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
           'startTime': Timestamp.fromDate(newStartTime),
           'endTime': Timestamp.fromDate(newEndTime),
         });
-        
+
       } else if (event is TaskModel) {
         final newStartTime = DateTime(
           newDate.year, newDate.month, newDate.day,
           newTime.hour, newTime.minute,
         );
-        
+
         DateTime? newEndTime;
         if (event.endTime != null && event.startTime != null) {
           final duration = event.endTime!.difference(event.startTime!);
           newEndTime = newStartTime.add(duration);
         }
-        
+
         await FirebaseFirestore.instance
             .collection('users')
             .doc(userId)
@@ -1174,10 +1154,10 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
           'endTime': newEndTime != null ? Timestamp.fromDate(newEndTime) : null,
         });
       }
-      
+
       HapticFeedback.heavyImpact();
       await _loadData();
-      
+
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1198,7 +1178,7 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
           ),
         );
       }
-      
+
     } catch (e) {
       print('Ошибка перемещения события: $e');
       HapticFeedback.heavyImpact();
@@ -1234,14 +1214,14 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
 
   double _calculateShiftHours(ShiftModel shift) {
     Duration duration = shift.endTime.difference(shift.startTime);
-    
+
     // Если смена через полночь
     if (duration.isNegative) {
       duration = duration + const Duration(days: 1);
     }
-    
+
     return duration.inMinutes / 60.0;
-  }  
+  }
 
   Widget _buildPremiumRequiredView() {
     return Center(
@@ -1261,27 +1241,27 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
               style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: 16),
-            Text(
+            const Text(
               'Недельный вид календаря доступен только с Premium подпиской',
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 32),
             GlassButton(
-                text: 'Получить Premium',
-                onPressed: () {
-                  Navigator.pop(context);
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const MainScreen(initialTab: 3),
-                    ),
-                    (route) => false,
-                  );
-                },
-              ),
+              text: 'Получить Premium',
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const MainScreen(initialTab: 3),
+                  ),
+                  (route) => false,
+                );
+              },
+            ),
           ],
         ),
       ),
     );
-  }  
+  }
 }

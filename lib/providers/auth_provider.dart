@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:app_links/app_links.dart';
+import 'dart:async';
 
 class AuthProvider extends ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -108,6 +112,9 @@ class AuthProvider extends ChangeNotifier {
         'createdAt': FieldValue.serverTimestamp(),
       });
 
+      // Отправляем письмо с подтверждением
+      await userCredential.user?.sendEmailVerification();
+
       _user = userCredential.user;
       _isLoading = false;
       notifyListeners();
@@ -125,6 +132,20 @@ class AuthProvider extends ChangeNotifier {
       return false;
     }
   }
+
+  // Повторная отправка письма с подтверждением
+  Future<void> resendVerificationEmail() async {
+    await _user?.sendEmailVerification();
+  }
+
+  // Обновить данные пользователя (для проверки верификации)
+  Future<void> reloadUser() async {
+    await _user?.reload();
+    _user = _auth.currentUser;
+    notifyListeners();
+  }
+
+  bool get isEmailVerified => _user?.emailVerified ?? false;
 
   // Вход пользователя
   Future<bool> signIn({
@@ -161,6 +182,7 @@ class AuthProvider extends ChangeNotifier {
   
   // Выход пользователя
   Future<void> signOut() async {
+    await GoogleSignIn().signOut().catchError((_) => null);
     await _auth.signOut();
     _user = null;
     notifyListeners();
@@ -279,6 +301,134 @@ class AuthProvider extends ChangeNotifier {
     }
   }
   
+  // ─── Google Sign-In ──────────────────────────────────────────────
+  Future<bool> signInWithGoogle() async {
+    try {
+      _isLoading = true;
+      _errorMessage = null;
+      notifyListeners();
+
+      final googleUser = await GoogleSignIn().signIn();
+      if (googleUser == null) {
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+
+      final googleAuth = await googleUser.authentication;
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      final userCred = await _auth.signInWithCredential(credential);
+      await _ensureUserDoc(userCred.user!);
+      _user = userCred.user;
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _isLoading = false;
+      _errorMessage = 'Ошибка входа через Google';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // ─── Yandex ID ───────────────────────────────────────────────────
+  Future<bool> signInWithYandex() async {
+    return _signInWithOAuth(
+      provider: 'yandex',
+      authUrl: 'https://flow-ai.prostozapaska.workers.dev/auth/yandex',
+      displayName: 'Yandex ID',
+    );
+  }
+
+  // ─── Telegram ────────────────────────────────────────────────────
+  Future<bool> signInWithTelegram() async {
+    return _signInWithOAuth(
+      provider: 'telegram',
+      authUrl: 'https://flow-ai.prostozapaska.workers.dev/auth/telegram',
+      displayName: 'Telegram',
+    );
+  }
+
+  Future<bool> _signInWithOAuth({
+    required String provider,
+    required String authUrl,
+    required String displayName,
+  }) async {
+    try {
+      _isLoading = true;
+      _errorMessage = null;
+      notifyListeners();
+
+      final completer = Completer<String?>();
+
+      // Слушаем входящий deep link flowapp://oauth?token=...
+      final appLinks = AppLinks();
+      StreamSubscription<Uri>? sub;
+      sub = appLinks.uriLinkStream.listen((uri) {
+        if (uri.scheme == 'flowapp' && uri.host == 'oauth') {
+          if (!completer.isCompleted) {
+            completer.complete(uri.queryParameters['token']);
+          }
+          sub?.cancel();
+        }
+      });
+
+      // Открываем браузер (Safari / Chrome)
+      await launchUrl(
+        Uri.parse(authUrl),
+        mode: LaunchMode.externalApplication,
+      );
+
+      // Ждём callback (таймаут 5 минут)
+      final firebaseToken = await completer.future.timeout(
+        const Duration(minutes: 5),
+        onTimeout: () {
+          sub?.cancel();
+          return null;
+        },
+      );
+
+      if (firebaseToken == null) {
+        _isLoading = false;
+        _errorMessage = 'Вход отменён';
+        notifyListeners();
+        return false;
+      }
+
+      final userCred = await _auth.signInWithCustomToken(firebaseToken);
+      await _ensureUserDoc(userCred.user!);
+      _user = userCred.user;
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _isLoading = false;
+      _errorMessage = 'Ошибка входа через $displayName';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // Создаём документ пользователя при первом входе
+  Future<void> _ensureUserDoc(User user) async {
+    final ref = _firestore.collection('users').doc(user.uid);
+    final doc = await ref.get();
+    if (!doc.exists) {
+      await ref.set({
+        'name': user.displayName ?? '',
+        'email': user.email ?? '',
+        'currency': '₽ Рубль',
+        'theme': 'light',
+        'role': 'employee',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    }
+  }
+
   // Очистка ошибки
   void clearError() {
     _errorMessage = null;

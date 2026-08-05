@@ -1,10 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
 
-// ---------------------------------------------------------------------------
-// Private helper: a single floating orb rendered as a circle with a radial
-// gradient that fades to transparent at its edge.
-// ---------------------------------------------------------------------------
 class _Orb extends StatelessWidget {
   final double size;
   final Color color;
@@ -26,9 +22,6 @@ class _Orb extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// AnimatedBackground – floating orb blobs instead of a plain gradient sweep.
-// ---------------------------------------------------------------------------
 class AnimatedBackground extends StatefulWidget {
   final Widget child;
   final bool isDark;
@@ -84,8 +77,8 @@ class _AnimatedBackgroundState extends State<AnimatedBackground>
   @override
   Widget build(BuildContext context) {
     final baseColor = widget.isDark
-        ? const Color(0xFF060612)
-        : const Color(0xFFf9f9fb);
+        ? const Color(0xFF080812)
+        : const Color(0xFFf0f2ff);
 
     return AnimatedBuilder(
       animation: Listenable.merge([_ctrl1, _ctrl2, _ctrl3]),
@@ -95,54 +88,56 @@ class _AnimatedBackgroundState extends State<AnimatedBackground>
             final w = constraints.maxWidth;
             final h = constraints.maxHeight;
 
-            // Orb 1
+            // Orb 1 — purple/violet
             final orb1Color = widget.isDark
-                ? const Color(0xFF5b21b6).withOpacity(0.45)
-                : const Color(0xFFa78bfa).withOpacity(0.45);
+                ? const Color(0xFF7c3aed).withOpacity(0.60)
+                : const Color(0xFF8b5cf6).withOpacity(0.35);
             final orb1x =
-                lerpDouble(-130, w * 0.2, _ctrl1.value)! - 200;
+                lerpDouble(-80, w * 0.25, _ctrl1.value)! - 200;
             final orb1y =
-                lerpDouble(-130, h * 0.22, _ctrl1.value)! - 200;
+                lerpDouble(-80, h * 0.18, _ctrl1.value)! - 200;
 
-            // Orb 2
+            // Orb 2 — blue/cyan
             final orb2Color = widget.isDark
-                ? const Color(0xFF0369a1).withOpacity(0.30)
-                : const Color(0xFF7dd3fc).withOpacity(0.40);
+                ? const Color(0xFF0ea5e9).withOpacity(0.40)
+                : const Color(0xFF38bdf8).withOpacity(0.30);
             final orb2x =
-                lerpDouble(w + 100, w * 0.4, _ctrl2.value)! - 170;
+                lerpDouble(w + 80, w * 0.35, _ctrl2.value)! - 170;
             final orb2y =
-                lerpDouble(h * 0.3, h * 0.5, _ctrl2.value)! - 170;
+                lerpDouble(h * 0.25, h * 0.55, _ctrl2.value)! - 170;
 
-            // Orb 3
+            // Orb 3 — pink/rose
             final orb3Color = widget.isDark
-                ? const Color(0xFF9d174d).withOpacity(0.20)
-                : const Color(0xFFfda4af).withOpacity(0.30);
+                ? const Color(0xFFe11d48).withOpacity(0.28)
+                : const Color(0xFFfb7185).withOpacity(0.22);
             final orb3x =
-                lerpDouble(w * 0.1, w * 0.55, _ctrl3.value)! - 145;
+                lerpDouble(w * 0.05, w * 0.6, _ctrl3.value)! - 145;
             final orb3y =
-                lerpDouble(h * 0.7, h * 0.55, _ctrl3.value)! - 145;
+                lerpDouble(h * 0.65, h * 0.5, _ctrl3.value)! - 145;
 
-            return Container(
-              color: baseColor,
-              child: Stack(
-                children: [
-                  Positioned(
-                    left: orb1x,
-                    top: orb1y,
-                    child: _Orb(size: 400, color: orb1Color),
-                  ),
-                  Positioned(
-                    left: orb2x,
-                    top: orb2y,
-                    child: _Orb(size: 340, color: orb2Color),
-                  ),
-                  Positioned(
-                    left: orb3x,
-                    top: orb3y,
-                    child: _Orb(size: 290, color: orb3Color),
-                  ),
-                  if (child != null) child,
-                ],
+            return RepaintBoundary(
+              child: Container(
+                color: baseColor,
+                child: Stack(
+                  children: [
+                    Positioned(
+                      left: orb1x,
+                      top: orb1y,
+                      child: _Orb(size: 520, color: orb1Color),
+                    ),
+                    Positioned(
+                      left: orb2x,
+                      top: orb2y,
+                      child: _Orb(size: 430, color: orb2Color),
+                    ),
+                    Positioned(
+                      left: orb3x,
+                      top: orb3y,
+                      child: _Orb(size: 370, color: orb3Color),
+                    ),
+                    if (child != null) RepaintBoundary(child: child),
+                  ],
+                ),
               ),
             );
           },
@@ -153,9 +148,6 @@ class _AnimatedBackgroundState extends State<AnimatedBackground>
   }
 }
 
-// ---------------------------------------------------------------------------
-// EnhancedGlassCard
-// ---------------------------------------------------------------------------
 class EnhancedGlassCard extends StatefulWidget {
   final Widget child;
   final EdgeInsetsGeometry? padding;
@@ -167,7 +159,7 @@ class EnhancedGlassCard extends StatefulWidget {
   final bool enableHover;
   final bool enableShadow;
   final VoidCallback? onTap;
-  // Kept for API compatibility; not used in decoration.
+
   final Gradient? gradient;
 
   const EnhancedGlassCard({
@@ -280,8 +272,8 @@ class _EnhancedGlassCardState extends State<EnhancedGlassCard>
                       BorderRadius.circular(widget.borderRadius),
                   child: BackdropFilter(
                     filter: ImageFilter.blur(
-                      sigmaX: 35 + (_glowAnimation.value * 10),
-                      sigmaY: 35 + (_glowAnimation.value * 10),
+                      sigmaX: 12 + (_glowAnimation.value * 4),
+                      sigmaY: 12 + (_glowAnimation.value * 4),
                     ),
                     child: Container(
                       padding: widget.padding,
@@ -314,9 +306,6 @@ class _EnhancedGlassCardState extends State<EnhancedGlassCard>
   }
 }
 
-// ---------------------------------------------------------------------------
-// GlassButton
-// ---------------------------------------------------------------------------
 class GlassButton extends StatefulWidget {
   final String text;
   final VoidCallback onPressed;
@@ -437,9 +426,6 @@ class _GlassButtonState extends State<GlassButton>
   }
 }
 
-// ---------------------------------------------------------------------------
-// SectionHeader
-// ---------------------------------------------------------------------------
 class SectionHeader extends StatelessWidget {
   final String title;
   final String? subtitle;

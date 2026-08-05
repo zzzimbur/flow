@@ -5,9 +5,10 @@ import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../providers/settings_provider.dart';
 import '../providers/auth_provider.dart';
-import '../widgets/enhanced_glass_card.dart';
 import '../providers/subscription_provider.dart';
 import '../widgets/ad_banner.dart';
+import '../theme/coinka.dart';
+import 'ai_screen.dart';
 
 class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({super.key});
@@ -173,483 +174,254 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final settings = Provider.of<SettingsProvider>(context);
-    final isDark = settings.isDarkMode;
-    final accentColor = settings.themeMode == ThemeMode.light
-        ? const Color(0xFF3b82f6)
-        : const Color(0xFF2563eb);
+    final currency = Provider.of<SettingsProvider>(context, listen: false).currencySymbol;
+    final subscriptionProvider = Provider.of<SubscriptionProvider>(context);
 
-  final subscriptionProvider = Provider.of<SubscriptionProvider>(context);
-    
     return Scaffold(
-      body: AnimatedBackground(
-        isDark: isDark,
-        child: Column(
-          children: [
-            if (!subscriptionProvider.isActive) const AdBanner(),
-            Expanded(
-              child: SafeArea(
-                child: Column(
-                  children: [
-                    // Хедер
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                      child: Row(
-                        children: [
-                          IconButton(
-                            icon: Icon(
-                              Icons.arrow_back_ios_new,
-                              color: isDark ? Colors.white : Colors.black,
-                            ),
-                            onPressed: () => Navigator.pop(context),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Аналитика',
-                            style: TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.bold,
-                              color: isDark ? Colors.white : Colors.black,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // Селектор периода
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      child: EnhancedGlassCard(
-                        padding: const EdgeInsets.all(4),
-                        enableHover: false,
-                        enableShadow: false,
-                        child: Row(
-                          children: [
-                            _buildPeriodButton('Неделя', 'week', isDark, accentColor),
-                            _buildPeriodButton('Месяц', 'month', isDark, accentColor),
-                            _buildPeriodButton('Год', 'year', isDark, accentColor),
-                          ],
+      backgroundColor: context.ckBg,
+      body: Column(
+        children: [
+          if (!subscriptionProvider.isActive) const AdBanner(),
+          Expanded(
+            child: SafeArea(
+              child: Column(
+                children: [
+                  // Header
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 8, 16, 0),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          icon: Icon(Icons.arrow_back_ios_new_rounded, color: context.ckHint, size: 20),
+                          onPressed: () => Navigator.pop(context),
                         ),
-                      ),
-                    ),
-
-                    // Контент
-                    Expanded(
-                      child: _isLoading
-                          ? Center(
-                              child: CircularProgressIndicator(
-                                valueColor: AlwaysStoppedAnimation<Color>(accentColor),
-                              ),
-                            )
-                          : RefreshIndicator(
-                              onRefresh: _loadData,
-                              color: accentColor,
-                              child: SingleChildScrollView(
-                                physics: const AlwaysScrollableScrollPhysics(),
-                                padding: const EdgeInsets.all(16),
-                                child: _buildContent(isDark, accentColor),
-                              ),
+                        Expanded(child: Text('Аналитика', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: context.ckText))),
+                        GestureDetector(
+                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AiScreen())),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(colors: [Coinka.accent2, Coinka.accent]),
+                              borderRadius: BorderRadius.circular(20),
                             ),
-                      ),
-                    ],
+                            child: const Row(children: [
+                              Text('✨', style: TextStyle(fontSize: 13)),
+                              SizedBox(width: 4),
+                              Text('Flow AI', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
+                            ]),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
+
+                  // Период
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(color: context.ckCard, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.ckBorder)),
+                      child: Row(children: [
+                        _buildPeriodButton('Неделя', 'week'),
+                        _buildPeriodButton('Месяц', 'month'),
+                        _buildPeriodButton('Год', 'year'),
+                      ]),
+                    ),
+                  ),
+
+                  Expanded(
+                    child: _isLoading
+                      ? const Center(child: CircularProgressIndicator(color: Coinka.accent))
+                      : RefreshIndicator(
+                          onRefresh: _loadData, color: Coinka.accent,
+                          child: SingleChildScrollView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
+                            child: _buildContent(currency),
+                          ),
+                        ),
+                  ),
+                ],
               ),
-          ],
-        ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildContent(bool isDark, Color accentColor) {
-    final stats = _selectedPeriod == 'week'
-        ? _weekStats
-        : _selectedPeriod == 'month'
-            ? _monthStats
-            : _yearStats;
+  Widget _buildContent(String currency) {
+    final stats = _selectedPeriod == 'week' ? _weekStats : _selectedPeriod == 'month' ? _monthStats : _yearStats;
 
     if (stats.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(40),
-          child: Text(
-            'Нет данных за выбранный период',
-            style: TextStyle(
-              fontSize: 15,
-              color: isDark ? Colors.white38 : Colors.black38,
-            ),
-          ),
-        ),
-      );
+      return Center(child: Padding(
+        padding: EdgeInsets.all(40),
+        child: Text('Нет данных за выбранный период', style: TextStyle(fontSize: 15, color: context.ckHint)),
+      ));
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SectionHeader(
-          title: 'Финансы',
-          icon: Icons.account_balance_wallet,
-          isDark: isDark,
-        ),
-        const SizedBox(height: 12),
-        _buildFinanceStats(stats, isDark),
-        const SizedBox(height: 24),
+        Text('💰 ФИНАНСЫ', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: context.ckHint, letterSpacing: 0.8)),
+        const SizedBox(height: 10),
+        _buildFinanceStats(stats, currency),
+        const SizedBox(height: 20),
 
-        SectionHeader(
-          title: 'Работа',
-          icon: Icons.work,
-          isDark: isDark,
-        ),
-        const SizedBox(height: 12),
-        _buildWorkStats(stats, isDark, accentColor),
-        const SizedBox(height: 24),
+        Text('💼 РАБОТА', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: context.ckHint, letterSpacing: 0.8)),
+        const SizedBox(height: 10),
+        _buildWorkStats(stats, currency),
+        const SizedBox(height: 20),
 
-        SectionHeader(
-          title: 'Продуктивность',
-          icon: Icons.check_circle,
-          isDark: isDark,
-        ),
-        const SizedBox(height: 12),
-        _buildTaskStats(stats, isDark),
-        const SizedBox(height: 24),
+        Text('✅ ПРОДУКТИВНОСТЬ', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: context.ckHint, letterSpacing: 0.8)),
+        const SizedBox(height: 10),
+        _buildTaskStats(stats),
+        const SizedBox(height: 20),
 
-        SectionHeader(
-          title: 'Инсайты',
-          icon: Icons.lightbulb,
-          isDark: isDark,
-        ),
-        const SizedBox(height: 12),
-        _buildInsights(stats, isDark, accentColor),
-        
-        const SizedBox(height: 100),
+        Text('💡 ИНСАЙТЫ', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: context.ckHint, letterSpacing: 0.8)),
+        const SizedBox(height: 10),
+        _buildInsights(stats),
       ],
     );
   }
 
-  Widget _buildPeriodButton(String label, String value, bool isDark, Color accentColor) {
+  Widget _buildPeriodButton(String label, String value) {
     final isSelected = _selectedPeriod == value;
     return Expanded(
       child: GestureDetector(
-        onTap: () {
-          HapticFeedback.selectionClick();
-          setState(() => _selectedPeriod = value);
-        },
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 8),
+        onTap: () { HapticFeedback.selectionClick(); setState(() => _selectedPeriod = value); },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: isSelected ? accentColor : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
+            color: isSelected ? Coinka.accent.withOpacity(0.18) : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: isSelected ? Coinka.accent : Colors.transparent, width: 1.5),
           ),
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: isSelected
-                  ? Colors.white
-                  : (isDark ? Colors.white60 : Colors.black54),
-            ),
-          ),
+          child: Text(label, textAlign: TextAlign.center, style: TextStyle(
+            fontSize: 14, fontWeight: FontWeight.w700,
+            color: isSelected ? Coinka.accent : context.ckHint,
+          )),
         ),
       ),
     );
   }
 
-  Widget _buildFinanceStats(Map<String, dynamic> stats, bool isDark) {
+  Widget _buildFinanceStats(Map<String, dynamic> stats, String currency) {
     final earnings = stats['totalEarnings'] as int;
     final expenses = stats['totalExpenses'] as int;
     final balance = earnings - expenses;
 
-    return EnhancedGlassCard(
-      padding: const EdgeInsets.all(24),
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(color: context.ckCard, borderRadius: BorderRadius.circular(16), border: Border.all(color: context.ckBorder)),
       child: Column(
         children: [
-          Text(
-            'Чистый доход',
-            style: TextStyle(
-              fontSize: 14,
-              color: isDark ? Colors.white60 : Colors.black54,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '₽${_formatNumber(balance)}',
-            style: TextStyle(
-              fontSize: 36,
-              fontWeight: FontWeight.bold,
-              color: balance >= 0
-                  ? const Color(0xFF10b981)
-                  : const Color(0xFFef4444),
-            ),
-          ),
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              Expanded(
-                child: _buildStatCard(
-                  label: 'Доходы',
-                  value: '₽${_formatNumber(earnings)}',
-                  color: const Color(0xFF10b981),
-                  icon: Icons.trending_up,
-                  isDark: isDark,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildStatCard(
-                  label: 'Расходы',
-                  value: '₽${_formatNumber(expenses)}',
-                  color: const Color(0xFFef4444),
-                  icon: Icons.trending_down,
-                  isDark: isDark,
-                ),
-              ),
-            ],
-          ),
+          Text('Чистый доход', style: TextStyle(fontSize: 13, color: context.ckHint)),
+          const SizedBox(height: 6),
+          Text('$currency${_formatNumber(balance)}', style: TextStyle(
+            fontSize: 36, fontWeight: FontWeight.w800, letterSpacing: -1,
+            color: balance >= 0 ? Coinka.green : Coinka.red,
+          )),
+          const SizedBox(height: 16),
+          Row(children: [
+            Expanded(child: _buildStatCard(label: 'Доходы', value: '$currency${_formatNumber(earnings)}', color: Coinka.green, emoji: '📈')),
+            const SizedBox(width: 10),
+            Expanded(child: _buildStatCard(label: 'Расходы', value: '$currency${_formatNumber(expenses)}', color: Coinka.red, emoji: '📉')),
+          ]),
         ],
       ),
     );
   }
 
-  Widget _buildWorkStats(Map<String, dynamic> stats, bool isDark, Color accentColor) {
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: _buildStatCard(
-                label: 'Часов',
-                value: '${stats['totalHours']}ч',
-                color: accentColor,
-                icon: Icons.schedule,
-                isDark: isDark,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildStatCard(
-                label: 'Смен',
-                value: '${stats['totalShifts']}',
-                color: accentColor,
-                icon: Icons.event,
-                isDark: isDark,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        EnhancedGlassCard(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF10b981).withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.payments,
-                  color: Color(0xFF10b981),
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Средняя ставка',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: isDark ? Colors.white60 : Colors.black54,
-                      ),
-                    ),
-                    Text(
-                      '₽${stats['averageHourlyRate']}/час',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? Colors.white : Colors.black,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
+  Widget _buildWorkStats(Map<String, dynamic> stats, String currency) {
+    return Column(children: [
+      Row(children: [
+        Expanded(child: _buildStatCard(label: 'Часов', value: '${stats['totalHours']}ч', color: Coinka.accent2, emoji: '⏱️')),
+        const SizedBox(width: 10),
+        Expanded(child: _buildStatCard(label: 'Смен', value: '${stats['totalShifts']}', color: Coinka.accent, emoji: '📋')),
+      ]),
+      const SizedBox(height: 10),
+      Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(color: context.ckCard, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.ckBorder)),
+        child: Row(children: [
+          const Text('💵', style: TextStyle(fontSize: 28)),
+          const SizedBox(width: 12),
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Средняя ставка', style: TextStyle(fontSize: 13, color: context.ckHint)),
+            Text('$currency${stats['averageHourlyRate']}/час', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: context.ckText)),
+          ]),
+        ]),
+      ),
+    ]);
   }
 
-  Widget _buildTaskStats(Map<String, dynamic> stats, bool isDark) {
+  Widget _buildTaskStats(Map<String, dynamic> stats) {
     final completed = stats['completedTasks'] as int;
     final total = stats['totalTasks'] as int;
     final progress = total > 0 ? completed / total : 0.0;
 
-    return EnhancedGlassCard(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Выполнено задач',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? Colors.white : Colors.black,
-                ),
-              ),
-              Text(
-                '$completed / $total',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? Colors.white60 : Colors.black54,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 8,
-              backgroundColor: isDark
-                  ? Colors.white.withOpacity(0.1)
-                  : Colors.black.withOpacity(0.06),
-              valueColor: const AlwaysStoppedAnimation<Color>(
-                Color(0xFF10b981),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '${(progress * 100).toStringAsFixed(0)}% завершено',
-            style: TextStyle(
-              fontSize: 14,
-              color: isDark ? Colors.white60 : Colors.black54,
-            ),
-          ),
-        ],
-      ),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: context.ckCard, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.ckBorder)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          Text('Выполнено задач', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: context.ckText)),
+          Text('$completed / $total', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: context.ckHint)),
+        ]),
+        const SizedBox(height: 12),
+        ClipRRect(borderRadius: BorderRadius.circular(6), child: LinearProgressIndicator(
+          value: progress, minHeight: 6,
+          backgroundColor: context.ckMuted, valueColor: const AlwaysStoppedAnimation(Coinka.accent),
+        )),
+        const SizedBox(height: 6),
+        Text('${(progress * 100).toStringAsFixed(0)}% завершено', style: TextStyle(fontSize: 13, color: context.ckHint)),
+      ]),
     );
   }
 
-  Widget _buildInsights(Map<String, dynamic> stats, bool isDark, Color accentColor) {
-    return Column(
-      children: [
-        if (stats.containsKey('topExpenseCategory'))
-          _buildInsightCard(
-            icon: Icons.shopping_cart,
-            title: 'Топ категория расходов',
-            value: stats['topExpenseCategory'],
-            color: const Color(0xFFef4444),
-            isDark: isDark,
-          ),
-        if (stats.containsKey('topCategory')) ...[
-          const SizedBox(height: 8),
-          _buildInsightCard(
-            icon: Icons.work,
-            title: 'Топ категория доходов',
-            value: stats['topCategory'],
-            color: accentColor,
-            isDark: isDark,
-          ),
-        ],
+  Widget _buildInsights(Map<String, dynamic> stats) {
+    return Column(children: [
+      if (stats.containsKey('topExpenseCategory'))
+        _buildInsightCard(emoji: '🛍️', title: 'Топ расходов', value: stats['topExpenseCategory'], color: Coinka.red),
+      if (stats.containsKey('topCategory')) ...[
+        const SizedBox(height: 8),
+        _buildInsightCard(emoji: '💼', title: 'Топ доходов', value: stats['topCategory'], color: Coinka.accent),
       ],
+    ]);
+  }
+
+  Widget _buildStatCard({required String label, required String value, required Color color, required String emoji}) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: context.ckCard, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.ckBorder)),
+      child: Column(children: [
+        Text(emoji, style: const TextStyle(fontSize: 24)),
+        const SizedBox(height: 6),
+        Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: color)),
+        const SizedBox(height: 2),
+        Text(label, style: TextStyle(fontSize: 11, color: context.ckHint, fontWeight: FontWeight.w600), textAlign: TextAlign.center),
+      ]),
     );
   }
 
-  Widget _buildStatCard({
-    required String label,
-    required String value,
-    required Color color,
-    required IconData icon,
-    required bool isDark,
-  }) {
-    return EnhancedGlassCard(
+  Widget _buildInsightCard({required String emoji, required String title, required String value, required Color color}) {
+    return Container(
       padding: const EdgeInsets.all(16),
-      enableHover: false,
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 24),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white : Colors.black,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: isDark ? Colors.white60 : Colors.black54,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInsightCard({
-    required IconData icon,
-    required String title,
-    required String value,
-    required Color color,
-    required bool isDark,
-  }) {
-    return EnhancedGlassCard(
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: color, size: 24),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: isDark ? Colors.white60 : Colors.black54,
-                  ),
-                ),
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white : Colors.black,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+      decoration: BoxDecoration(color: context.ckCard, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.ckBorder)),
+      child: Row(children: [
+        Container(
+          width: 44, height: 44,
+          decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(12)),
+          child: Center(child: Text(emoji, style: const TextStyle(fontSize: 22))),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title, style: TextStyle(fontSize: 13, color: context.ckHint)),
+          Text(value, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: context.ckText)),
+        ])),
+      ]),
     );
   }
 

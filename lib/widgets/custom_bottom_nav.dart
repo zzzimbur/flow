@@ -1,202 +1,123 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:provider/provider.dart';
-import '../providers/settings_provider.dart';
-import 'dart:ui';
+import '../theme/coinka.dart';
 
 class CustomBottomNav extends StatelessWidget {
   final int currentIndex;
   final Function(int) onTabChange;
-  final VoidCallback onAddPressed;
   final bool showAccountantTab;
 
   const CustomBottomNav({
     super.key,
     required this.currentIndex,
     required this.onTabChange,
-    required this.onAddPressed,
     this.showAccountantTab = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final settings = Provider.of<SettingsProvider>(context);
-    final isDark = settings.isDarkMode;
+    // «+» вынесена в floating-кнопку над таб-баром (см. main_screen),
+    // поэтому здесь только вкладки, ровно распределённые по ширине.
+    final items = <_NavItemData>[
+      const _NavItemData(emoji: '💰', label: 'Финансы', index: 0),
+      const _NavItemData(emoji: '📅', label: 'Смены', index: 1),
+      const _NavItemData(emoji: '✅', label: 'Задачи', index: 2),
+      if (showAccountantTab)
+        const _NavItemData(emoji: '📋', label: 'Табель', index: 4),
+      const _NavItemData(emoji: '⚙️', label: 'Настройки', index: 3),
+    ];
 
     return Container(
-      margin: const EdgeInsets.only(left: 20, right: 20, bottom: 20, top: 8),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.4 : 0.1),
-            blurRadius: 30,
-            spreadRadius: 0,
-            offset: const Offset(0, 10),
-          ),
-        ],
+        color: context.ckS1,
+        border: Border(top: BorderSide(color: context.ckBorder)),
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: isDark 
-                  ? Colors.black.withOpacity(0.5)
-                  : Colors.white.withOpacity(0.7),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: isDark
-                    ? Colors.white.withOpacity(0.15)
-                    : Colors.white.withOpacity(0.6),
-                width: 1,
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildNavItem(
-                  icon: Icons.house_rounded,
-                  label: 'Главная',
-                  index: 0,
-                  isDark: isDark,
-                ),
-                _buildNavItem(
-                  icon: Icons.account_balance_wallet_rounded,
-                  label: 'Финансы',
-                  index: 1,
-                  isDark: isDark,
-                ),
-                _buildAddButton(isDark), // теперь по центру!
-                _buildNavItem(
-                  icon: Icons.calendar_today_rounded,
-                  label: 'Календарь',
-                  index: 2,
-                  isDark: isDark,
-                ),
-                if (showAccountantTab)
-                  _buildNavItem(
-                    icon: Icons.summarize,
-                    label: 'Табель',
-                    index: 4,
-                    isDark: isDark,
-                  )
-                else
-                  _buildNavItem(
-                    icon: Icons.settings_rounded,
-                    label: 'Настройки',
-                    index: 3,
-                    isDark: isDark,
-                  ),
-                if (showAccountantTab)
-                  _buildNavItem(
-                    icon: Icons.settings_rounded,
-                    label: 'Настройки',
-                    index: 3,
-                    isDark: isDark,
-                  ),
-              ],
-            ),
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 64,
+          child: Row(
+            children: items
+                .map((e) => _NavItem(
+                      data: e,
+                      isActive: currentIndex == e.index,
+                      onTap: onTabChange,
+                    ))
+                .toList(),
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNavItem({
-    required IconData icon,
-    required String label,
-    required int index,
-    required bool isDark,
-  }) {
-    final isActive = currentIndex == index;
-    
-    return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          HapticFeedback.lightImpact();
-          onTabChange(index);
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeInOut,
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
-          decoration: const BoxDecoration(),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                color: isActive
-                    ? (isDark ? Colors.white : const Color(0xFF1e293b))
-                    : (isDark ? Colors.white.withOpacity(0.5) : Colors.black.withOpacity(0.4)),
-                size: 24,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
-                  color: isActive
-                      ? (isDark ? Colors.white : const Color(0xFF1e293b))
-                      : (isDark ? Colors.white.withOpacity(0.5) : Colors.black.withOpacity(0.4)),
-                  letterSpacing: -0.2,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 3),
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                width: isActive ? 4 : 0,
-                height: isActive ? 4 : 0,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF8b7ff5),
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAddButton(bool isDark) {
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.mediumImpact();
-        onAddPressed();
-      },
-      child: Container(
-        width: 56,
-        height: 56,
-        margin: const EdgeInsets.symmetric(horizontal: 8),
-        decoration: BoxDecoration(
-          color: const Color(0xFF8b7ff5),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: Colors.white.withOpacity(0.3),
-            width: 1.5,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF8b7ff5).withOpacity(0.35),
-              blurRadius: 20,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        child: const Icon(
-          Icons.add_rounded,
-          color: Colors.white,
-          size: 28,
         ),
       ),
     );
   }
 }
+
+class _NavItemData {
+  final String emoji;
+  final String label;
+  final int index;
+  const _NavItemData(
+      {required this.emoji, required this.label, required this.index});
+}
+
+class _NavItem extends StatelessWidget {
+  final _NavItemData data;
+  final bool isActive;
+  final Function(int) onTap;
+
+  const _NavItem({
+    required this.data,
+    required this.isActive,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          HapticFeedback.lightImpact();
+          onTap(data.index);
+        },
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Opacity(
+                  opacity: isActive ? 1.0 : 0.45,
+                  child: Text(data.emoji, style: const TextStyle(fontSize: 20)),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  data.label,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.2,
+                    color: isActive ? Coinka.accent : context.ckMuted,
+                  ),
+                ),
+              ],
+            ),
+            // Полоска снизу под активной вкладкой
+            if (isActive)
+              Positioned(
+                bottom: 4,
+                child: Container(
+                  width: 20,
+                  height: 2,
+                  decoration: BoxDecoration(
+                    color: Coinka.accent,
+                    borderRadius: BorderRadius.circular(1),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+

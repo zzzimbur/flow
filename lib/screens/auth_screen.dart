@@ -5,6 +5,7 @@ import '../providers/auth_provider.dart';
 import '../providers/settings_provider.dart';
 import '../widgets/enhanced_glass_card.dart';
 import 'main_screen.dart';
+import 'email_verification_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class AuthScreen extends StatefulWidget {
@@ -152,7 +153,7 @@ class _AuthScreenState extends State<AuthScreen> {
                           Align(
                             alignment: Alignment.centerRight,
                             child: TextButton(
-                              onPressed: () {},
+                              onPressed: () => _handleForgotPassword(),
                               child: Text(
                                 'Забыли пароль?',
                                 style: TextStyle(
@@ -183,8 +184,51 @@ class _AuthScreenState extends State<AuthScreen> {
                       ],
                     ),
                   ),
+                  const SizedBox(height: 20),
+
+                  // Разделитель
+                  Row(
+                    children: [
+                      Expanded(child: Divider(color: isDark ? Colors.white24 : Colors.black12)),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Text(
+                          'или войти через',
+                          style: TextStyle(
+                            color: isDark ? Colors.white38 : Colors.black38,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                      Expanded(child: Divider(color: isDark ? Colors.white24 : Colors.black12)),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Кнопки соц. сетей
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _SocialButton(
+                          label: 'Google',
+                          isDark: isDark,
+                          icon: _googleIcon(),
+                          onTap: () => _handleSocialAuth('google'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _SocialButton(
+                          label: 'Яндекс',
+                          isDark: isDark,
+                          icon: _yandexIcon(),
+                          onTap: () => _handleSocialAuth('yandex'),
+                        ),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 14),
-                  
+
                   // Переключатель режима
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -377,11 +421,31 @@ class _AuthScreenState extends State<AuthScreen> {
       }
 
       if (success && mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => const MainScreen(),
-          ),
+        // Инициализируем настройки сразу после входа
+        final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+        final firebaseDisplayName = authProvider.user?.displayName ?? '';
+        await settingsProvider.initialize(
+          authProvider.userId,
+          firebaseDisplayName: firebaseDisplayName,
         );
+
+        if (!mounted) return;
+
+        // После регистрации — показываем экран подтверждения email
+        // После входа — сразу в приложение
+        if (!_isLogin) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => const EmailVerificationScreen(),
+            ),
+          );
+        } else {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => const MainScreen(),
+            ),
+          );
+        }
       } else if (mounted) {
         _showError(authProvider.errorMessage ?? 'Произошла ошибка');
       }
@@ -393,6 +457,33 @@ class _AuthScreenState extends State<AuthScreen> {
       if (mounted) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  Future<void> _handleForgotPassword() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty) {
+      _showError('Введите email в поле выше');
+      return;
+    }
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final success = await authProvider.resetPassword(email);
+    if (!mounted) return;
+    if (success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(children: [
+            Icon(Icons.check_circle_outline, color: Colors.white),
+            SizedBox(width: 12),
+            Expanded(child: Text('Письмо со сбросом пароля отправлено')),
+          ]),
+          backgroundColor: const Color(0xFF00c896),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        ),
+      );
+    } else {
+      _showError('Не удалось отправить письмо. Проверьте email.');
     }
   }
 
@@ -417,6 +508,57 @@ class _AuthScreenState extends State<AuthScreen> {
       ),
     );
   }
+
+  Future<void> _handleSocialAuth(String provider) async {
+    setState(() => _isLoading = true);
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+    bool success = false;
+    try {
+      switch (provider) {
+        case 'google':
+          success = await authProvider.signInWithGoogle();
+          break;
+        case 'yandex':
+          success = await authProvider.signInWithYandex();
+          break;
+      }
+    } catch (_) {}
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    if (success) {
+      final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+      await settingsProvider.initialize(
+        authProvider.userId,
+        firebaseDisplayName: authProvider.user?.displayName ?? '',
+      );
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const MainScreen()),
+      );
+    } else {
+      _showError(authProvider.errorMessage ?? 'Ошибка входа');
+    }
+  }
+
+  Widget _googleIcon() => Image.network(
+    'https://www.google.com/favicon.ico',
+    width: 18, height: 18,
+    errorBuilder: (_, __, ___) => const Icon(Icons.g_mobiledata, size: 20),
+  );
+
+  Widget _yandexIcon() => Container(
+    width: 18, height: 18,
+    decoration: BoxDecoration(
+      color: const Color(0xFFFC3F1D),
+      borderRadius: BorderRadius.circular(4),
+    ),
+    child: const Center(
+      child: Text('Я', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+    ),
+  );
 
   Widget _buildTextField({
     required TextEditingController controller,
@@ -471,6 +613,58 @@ class _AuthScreenState extends State<AuthScreen> {
                   width: 2,
                 ),
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SocialButton extends StatelessWidget {
+  final String label;
+  final bool isDark;
+  final Widget icon;
+  final VoidCallback onTap;
+
+  const _SocialButton({
+    required this.label,
+    required this.isDark,
+    required this.icon,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 13),
+            decoration: BoxDecoration(
+              color: isDark ? Colors.white.withOpacity(0.07) : Colors.black.withOpacity(0.04),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: isDark ? Colors.white.withOpacity(0.12) : Colors.black.withOpacity(0.08),
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                icon,
+                const SizedBox(height: 5),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: isDark ? Colors.white70 : Colors.black54,
+                  ),
+                ),
+              ],
             ),
           ),
         ),

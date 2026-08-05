@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "api/**/*.js": { "maxDuration": 30 }
+  },
+  "rewrites": [
+    { "source": "/api/oauth/vk/callback", "destination": "/api/oauth/vk-callback" },
+    { "source": "/api/oauth/yandex/callback", "destination": "/api/oauth/yandex-callback" },
+    { "source": "/api/oauth/telegram/callback", "destination": "/api/oauth/telegram-callback" }
+  ]
+}

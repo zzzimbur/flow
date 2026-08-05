@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // Класс для хранения информации о цветовой теме
 class ColorTheme {
@@ -24,11 +25,12 @@ class SettingsProvider extends ChangeNotifier {
   String _userId = '';
   
   // Настройки приложения
-  ThemeMode _themeMode = ThemeMode.light;
+  ThemeMode _themeMode = ThemeMode.dark;
   String _currency = '₽ Рубль';
   String _selectedThemeId = 'purple'; // ID выбранной темы
   bool _isLoaded = false; // Флаг загрузки настроек
   bool _isFirstLaunch = true;
+  SharedPreferences? _prefs;
 
   // Геттеры
   String get userName => _userName;
@@ -40,6 +42,7 @@ class SettingsProvider extends ChangeNotifier {
   String get selectedThemeId => _selectedThemeId;
   bool get isLoaded => _isLoaded; // Геттер для проверки загрузки
   bool get isFirstLaunch => _isFirstLaunch;
+  String get currencySymbol => _currency.isNotEmpty ? _currency.split(' ')[0] : '₽';
 
   String _userRole = 'employee'; // 'employee' или 'accountant'
   String get userRole => _userRole;
@@ -139,8 +142,24 @@ class SettingsProvider extends ChangeNotifier {
   void setThemeMode(ThemeMode mode) {
     _themeMode = mode;
     notifyListeners();
+    _saveToPrefs();
   }
   
+
+  Future<void> _loadFromPrefs() async {
+    _prefs ??= await SharedPreferences.getInstance();
+    final isDark = _prefs!.getBool('isDarkMode') ?? true;
+    _themeMode = isDark ? ThemeMode.dark : ThemeMode.light;
+    _currency = _prefs!.getString('currency') ?? '₽ Рубль';
+    _selectedThemeId = _prefs!.getString('themeId') ?? 'purple';
+  }
+
+  Future<void> _saveToPrefs() async {
+    _prefs ??= await SharedPreferences.getInstance();
+    await _prefs!.setBool('isDarkMode', isDarkMode);
+    await _prefs!.setString('currency', _currency);
+    await _prefs!.setString('themeId', _selectedThemeId);
+  }
 
   Future<void> _saveToFirestore(String userId) async {
     try {
@@ -160,26 +179,39 @@ class SettingsProvider extends ChangeNotifier {
   void toggleTheme(bool isDark, {String? userId}) {
     _themeMode = isDark ? ThemeMode.dark : ThemeMode.light;
     notifyListeners();
-    
-    if (userId != null && userId.isNotEmpty) {
-      _saveToFirestore(userId);
+    _saveToPrefs();
+    final uid = userId ?? _userId;
+    if (uid.isNotEmpty) {
+      _saveToFirestore(uid);
     }
   }
- 
-  
+
   void setCurrency(String curr) {
     _currency = curr;
     notifyListeners();
+    _saveToPrefs();
+    if (_userId.isNotEmpty) {
+      _saveToFirestore(_userId);
+    }
   }
-  
+
   void setAccentTheme(String themeId) {
     _selectedThemeId = themeId;
     notifyListeners();
+    _saveToPrefs();
+    if (_userId.isNotEmpty) {
+      _saveToFirestore(_userId);
+    }
   }
   
   // Инициализация настроек
   Future<void> initialize(String userId, {String? firebaseDisplayName}) async {
     _userId = userId;
+
+    // Загружаем из локального хранилища сначала — мгновенная отрисовка
+    await _loadFromPrefs();
+    notifyListeners();
+
     if (userId.isEmpty) {
       _isLoaded = true;
       notifyListeners();
@@ -221,8 +253,11 @@ class SettingsProvider extends ChangeNotifier {
         _userRole = data?['role'] ?? 'employee';
 
         // Загружаем тему
-        final isDark = data?['isDarkMode'] ?? false;
+        final isDark = data?['isDarkMode'] ?? true;
         _themeMode = isDark ? ThemeMode.dark : ThemeMode.light;
+
+        // Кешируем в локальное хранилище для следующего запуска
+        await _saveToPrefs();
       } else {
         // Документ не существует - первый запуск
         _isFirstLaunch = true;

@@ -1,8 +1,7 @@
 // lib/providers/subscription_provider.dart
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../screens/settings_screen.dart';
-import '../screens/payment_screen.dart'; // ДОБАВЛЕНО
+import '../screens/payment_screen.dart';
 import '../services/yookassa_service.dart';
 
 enum SubscriptionType {
@@ -26,19 +25,28 @@ class SubscriptionProvider extends ChangeNotifier {
   DateTime? get startedAt => _startedAt;
   bool get isLoaded => _isLoaded;
 
-  // Список фич доступных с подпиской
-  bool get canUseWeekView => isPremium;
-  bool get canCreateGoals => isPremium;
-  bool get canUseTemplates => isPremium;
-  bool get canUseAnalytics => isPremium;
-  bool get canExportData => isPremium;
-  bool get canAccessFinance => isPremium;
-  bool get canCreateTransactions => isPremium;
-  bool get canImportExportCalendar => isPremium;
-  bool get canAccessWeekView => isPremium;
+  // Всё базовое — бесплатно
+  bool get canUseWeekView => true;
+  bool get canCreateGoals => true;
+  bool get canUseTemplates => true;
+  bool get canUseAnalytics => true;
+  bool get canExportData => true;
+  bool get canAccessFinance => true;
+  bool get canCreateTransactions => true;
+  bool get canImportExportCalendar => true;
+  bool get canAccessWeekView => true;
 
-  // Загрузить данные подписки
-  Future<void> initialize(String userId) async {
+  // Только AI-фичи — premium
+  bool get canUseAI => isPremium;
+  bool get canUseForecast => isPremium;
+  bool get canScanReceipt => isPremium;
+  bool get canUseVoiceInput => isPremium;
+
+  // Загрузить данные подписки.
+  // Устойчиво к временным сбоям: на старте Firebase Auth может на доли секунды
+  // «моргнуть» (особенно по Wi-Fi), и Firestore вернёт permission-denied.
+  // В таком случае повторяем попытку, чтобы подписка не «слетала» зря.
+  Future<void> initialize(String userId, {int attempt = 0}) async {
     if (userId.isEmpty) {
       _isLoaded = true;
       notifyListeners();
@@ -72,6 +80,14 @@ class SubscriptionProvider extends ChangeNotifier {
       _isLoaded = true;
       notifyListeners();
     } catch (e) {
+      // Повторяем при временной ошибке (auth ещё не устаканился / нет сети).
+      final transient = e is FirebaseException &&
+          (e.code == 'permission-denied' || e.code == 'unavailable');
+      if (transient && attempt < 3) {
+        print('⏳ Подписка: временная ошибка ($e), повтор #${attempt + 1}');
+        await Future.delayed(Duration(milliseconds: 500 * (attempt + 1)));
+        return initialize(userId, attempt: attempt + 1);
+      }
       print('Ошибка загрузки подписки: $e');
       _isLoaded = true;
       notifyListeners();
@@ -105,6 +121,16 @@ class SubscriptionProvider extends ChangeNotifier {
     } catch (e) {
       print('Ошибка активации подписки: $e');
     }
+  }
+
+  // Сбросить состояние при выходе из аккаунта
+  void reset() {
+    _isActive = false;
+    _type = SubscriptionType.free;
+    _expiresAt = null;
+    _startedAt = null;
+    _isLoaded = false;
+    notifyListeners();
   }
 
   // Отменить подписку
@@ -216,21 +242,14 @@ class SubscriptionProvider extends ChangeNotifier {
 
   // Проверить доступ к фиче
   bool hasAccessTo(String feature) {
-    if (isPremium) return true;
-
     switch (feature) {
-      case 'week_view':
-        return canUseWeekView;
-      case 'goals':
-        return canCreateGoals;
-      case 'templates':
-        return canUseTemplates;
-      case 'analytics':
-        return canUseAnalytics;
-      case 'export':
-        return canExportData;
+      case 'ai':
+      case 'forecast':
+      case 'receipt':
+      case 'voice':
+        return isPremium;
       default:
-        return false;
+        return true; // всё остальное бесплатно
     }
   }
 
@@ -256,18 +275,15 @@ class SubscriptionProvider extends ChangeNotifier {
   // Получить описание фичи
   static String getFeatureDescription(String feature) {
     switch (feature) {
-      case 'week_view':
-        return 'Недельный вид календаря с drag & drop';
-      case 'goals':
-        return 'Создание и отслеживание финансовых целей';
-      case 'templates':
-        return 'Сохранение и использование шаблонов';
-      case 'analytics':
-        return 'Подробная аналитика и статистика';
-      case 'export':
-        return 'Экспорт данных в Excel/CSV';
+      case 'ai':
+      case 'forecast':
+        return 'AI-прогноз доходов и советы по финансам';
+      case 'receipt':
+        return 'Сканирование чеков с автораспознаванием';
+      case 'voice':
+        return 'Голосовой ввод смен и транзакций';
       default:
-        return 'Премиум функция';
+        return 'AI-функции для умного учёта';
     }
   }
 }
@@ -280,7 +296,6 @@ class PremiumDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final featureDesc = SubscriptionProvider.getFeatureDescription(feature);
 
     return Dialog(
@@ -334,7 +349,7 @@ class PremiumDialog extends StatelessWidget {
             ),
             const SizedBox(height: 32),
             const Text(
-              'Премиум включает:',
+              'Flow AI включает:',
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
@@ -342,11 +357,10 @@ class PremiumDialog extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            _buildFeature('📅', 'Недельный вид календаря'),
-            _buildFeature('🎯', 'Неограниченные цели'),
-            _buildFeature('📋', 'Шаблоны событий'),
-            _buildFeature('📊', 'Детальная аналитика'),
-            _buildFeature('💾', 'Экспорт данных'),
+            _buildFeature('🤖', 'AI-прогноз доходов по сменам'),
+            _buildFeature('💡', 'Персональные финансовые советы'),
+            _buildFeature('📷', 'Сканирование и разбор чеков'),
+            _buildFeature('🎙️', 'Голосовой ввод смен и трат'),
             const SizedBox(height: 32),
             ElevatedButton(
               onPressed: () {
@@ -368,7 +382,7 @@ class PremiumDialog extends StatelessWidget {
                 ),
               ),
               child: const Text(
-                'Получить Премиум',
+                'Подключить Flow AI',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,

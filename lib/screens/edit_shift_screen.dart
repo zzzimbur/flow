@@ -1026,7 +1026,7 @@ class _EditShiftScreenState extends State<EditShiftScreen> {
                     ],
                   ),
                   Text(
-                    '₽${calculatedEarnings.toStringAsFixed(0)}',
+                    '${Provider.of<SettingsProvider>(context, listen: false).currencySymbol}${calculatedEarnings.toStringAsFixed(0)}',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
