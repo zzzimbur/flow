@@ -12,7 +12,8 @@ class TaskModel {
   final bool isDone;
   final List<SubtaskModel> subtasks;
   final bool hasReminder;
-  final String repeatType; // 'none', 'daily', 'weekly', 'monthly'
+  final String repeatType; // 'none', 'daily', 'weekly', 'monthly', 'yearly'
+  final DateTime? repeatEndDate; // null = навсегда
   final String? note;
   final DateTime createdAt;
 
@@ -28,6 +29,7 @@ class TaskModel {
     this.subtasks = const [],
     this.hasReminder = false,
     this.repeatType = 'none',
+    this.repeatEndDate,
     this.note,
     required this.createdAt,
   });
@@ -123,6 +125,7 @@ class TaskModel {
     List<SubtaskModel>? subtasks,
     bool? hasReminder,
     String? repeatType,
+    DateTime? repeatEndDate,
     String? note,
     DateTime? createdAt,
   }) {
@@ -138,6 +141,7 @@ class TaskModel {
       subtasks: subtasks ?? this.subtasks,
       hasReminder: hasReminder ?? this.hasReminder,
       repeatType: repeatType ?? this.repeatType,
+      repeatEndDate: repeatEndDate ?? this.repeatEndDate,
       note: note ?? this.note,
       createdAt: createdAt ?? this.createdAt,
     );
@@ -149,13 +153,13 @@ class TaskModel {
       'title': title,
       'date': Timestamp.fromDate(date),
       'startTime': startTime != null ? Timestamp.fromDate(startTime!) : null,
-      'endTime': endTime != null ? Timestamp.fromDate(endTime!) : null,
       'priority': priority,
       'category': category,
       'isDone': isDone,
       'subtasks': subtasks.map((s) => s.toMap()).toList(),
       'hasReminder': hasReminder,
       'repeatType': repeatType,
+      'repeatEndDate': repeatEndDate != null ? Timestamp.fromDate(repeatEndDate!) : null,
       'note': note,
       'createdAt': Timestamp.fromDate(createdAt),
     };
@@ -168,7 +172,6 @@ class TaskModel {
       title: map['title'] ?? '',
       date: (map['date'] as Timestamp).toDate(),
       startTime: map['startTime'] != null ? (map['startTime'] as Timestamp).toDate() : null,
-      endTime: map['endTime'] != null ? (map['endTime'] as Timestamp).toDate() : null,
       priority: map['priority'] ?? 'none',
       category: map['category'] ?? 'Работа',
       isDone: map['isDone'] ?? false,
@@ -178,8 +181,9 @@ class TaskModel {
           [],
       hasReminder: map['hasReminder'] ?? false,
       repeatType: map['repeatType'] ?? 'none',
+      repeatEndDate: map['repeatEndDate'] != null ? (map['repeatEndDate'] as Timestamp).toDate() : null,
       note: map['note'],
-      createdAt: map['createdAt'] != null 
+      createdAt: map['createdAt'] != null
           ? (map['createdAt'] as Timestamp).toDate()
           : DateTime.now(),
     );

@@ -2,7 +2,9 @@
 const { getAdmin } = require('./firebase');
 
 const ANTHROPIC_API = 'https://api.anthropic.com/v1/messages';
-const MODEL = 'claude-haiku-4-5-20251001';
+const GEMINI_API = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+const MODEL_CLAUDE = 'claude-haiku-4-5-20251001';
+const MODEL = MODEL_CLAUDE; // default
 
 function db() { return getAdmin().firestore(); }
 
@@ -104,7 +106,7 @@ function buildSystemPrompt(ctx) {
 Если данных нет — скажи прямо и предложи добавить данные через приложение или бота.`;
 }
 
-/** Call Anthropic API */
+/** Call Anthropic Claude API */
 async function callClaude(systemPrompt, messages, maxTokens = 512) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
@@ -116,12 +118,44 @@ async function callClaude(systemPrompt, messages, maxTokens = 512) {
       'anthropic-version': '2023-06-01',
       'content-type': 'application/json',
     },
-    body: JSON.stringify({ model: MODEL, max_tokens: maxTokens, system: systemPrompt, messages }),
+    body: JSON.stringify({ model: MODEL_CLAUDE, max_tokens: maxTokens, system: systemPrompt, messages }),
   });
 
   if (!resp.ok) throw new Error(`Anthropic ${resp.status}: ${await resp.text()}`);
   const data = await resp.json();
   return data.content?.[0]?.text ?? '';
+}
+
+/** Call Google Gemini API */
+async function callGemini(systemPrompt, messages, maxTokens = 512) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY not set');
+
+  // Convert messages to Gemini format
+  const contents = messages.map(m => ({
+    role: m.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: m.content }],
+  }));
+
+  const resp = await fetch(`${GEMINI_API}?key=${apiKey}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      system_instruction: { parts: [{ text: systemPrompt }] },
+      contents,
+      generationConfig: { maxOutputTokens: maxTokens, temperature: 0.7 },
+    }),
+  });
+
+  if (!resp.ok) throw new Error(`Gemini ${resp.status}: ${await resp.text()}`);
+  const data = await resp.json();
+  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+}
+
+/** Call AI with fallback: try primary provider, fall back to the other */
+async function callAI(systemPrompt, messages, provider = 'claude', maxTokens = 512) {
+  if (provider === 'gemini') return callGemini(systemPrompt, messages, maxTokens);
+  return callClaude(systemPrompt, messages, maxTokens);
 }
 
 /** Load last N conversation turns from Firestore */
@@ -189,4 +223,4 @@ async function activatePremium(uid, months = 1) {
   }, { merge: true });
 }
 
-module.exports = { loadUserContext, buildSystemPrompt, callClaude, loadHistory, saveTurn, hasAIPremium, activatePremium };
+module.exports = { loadUserContext, buildSystemPrompt, callClaude, callGemini, callAI, loadHistory, saveTurn, hasAIPremium, activatePremium };

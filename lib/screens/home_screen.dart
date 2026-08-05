@@ -545,8 +545,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
         child: Container(
-          height: 130,
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
             color: isDark
                 ? Colors.white.withOpacity(0.08)

@@ -10,7 +10,7 @@ import '../providers/settings_provider.dart';
 import '../providers/subscription_provider.dart';
 import 'payment_screen.dart';
 
-const _kAdviceUrl = 'https://flow-bot-rosy.vercel.app/api/ai/advice';
+const _kAdviceUrl = 'https://flow-ai.prostozapaska.workers.dev';
 
 // ─── Data models ──────────────────────────────────────────────────────────────
 
@@ -25,13 +25,26 @@ class _Msg {
 
 // ─── Quick suggestions ────────────────────────────────────────────────────────
 
+class _Suggestion {
+  final String label;
+  final String msg;
+  const _Suggestion(this.label, this.msg);
+}
+
 const _kSuggestions = [
-  'Сколько я заработаю в следующем месяце?',
-  'Дай 3 совета по расходам',
-  'Как увеличить доход?',
-  'Сравни этот месяц с прошлым',
-  'Составь отчёт за месяц',
-  'На что уходит больше всего?',
+  _Suggestion('🔍 Разбор расходов',
+    'Выступи в роли финансового консультанта. '
+    'На основе моих расходов за этот месяц раздели их на категории: '
+    'обязательные, полезные, эмоциональные, импульсивные, бесполезные. '
+    'Покажи: 1. На что ушло больше всего денег. '
+    '2. Какие расходы можно сократить без снижения качества жизни. '
+    '3. Сколько денег я смогу экономить ежемесячно. '
+    '4. Три главные финансовые ошибки месяца.'),
+  _Suggestion('📈 Прогноз дохода', 'Сколько я заработаю в следующем месяце?'),
+  _Suggestion('💡 Советы по расходам', 'Дай 3 совета по расходам'),
+  _Suggestion('💼 Как увеличить доход?', 'Как увеличить доход?'),
+  _Suggestion('📊 Отчёт за месяц', 'Составь подробный отчёт за этот месяц'),
+  _Suggestion('🎯 Финансовые цели', 'Помоги поставить финансовые цели на следующий месяц'),
 ];
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
@@ -52,6 +65,7 @@ class _AiScreenState extends State<AiScreen> with TickerProviderStateMixin {
   bool _thinking = false;
   bool _listening = false;
   bool _speechAvail = false;
+  String _provider = 'claude'; // 'claude' | 'gemini'
 
   // User context (same as Telegram bot)
   double _shiftEarn = 0;
@@ -61,6 +75,7 @@ class _AiScreenState extends State<AiScreen> with TickerProviderStateMixin {
   double _forecast = 0;
   String _topExpense = '—';
   double _savingsRate = 0;
+  Map<String, double> _expByCat = {};
 
   final List<_Msg> _messages = [];
   late String _sessionId;
@@ -161,9 +176,8 @@ class _AiScreenState extends State<AiScreen> with TickerProviderStateMixin {
           expByCat[cat] = (expByCat[cat] ?? 0) + amt;
         }
       }
-      final top = expByCat.isEmpty ? '—'
-          : (expByCat.entries.toList()..sort((a, b) => b.value.compareTo(a.value)))
-              .take(2).map((e) => '${e.key}: ${e.value.round()}₽').join(', ');
+      final sorted = expByCat.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+      final top = sorted.isEmpty ? '—' : sorted.take(2).map((e) => '${e.key}: ${e.value.round()}₽').join(', ');
       final totalInc = inc + earn;
 
       if (mounted) {
@@ -172,6 +186,7 @@ class _AiScreenState extends State<AiScreen> with TickerProviderStateMixin {
           _income = totalInc; _expense = exp;
           _forecast = fc;
           _topExpense = top;
+          _expByCat = expByCat;
           _savingsRate = totalInc > 0 ? (totalInc - exp) / totalInc * 100 : 0;
         });
       }
@@ -224,6 +239,7 @@ class _AiScreenState extends State<AiScreen> with TickerProviderStateMixin {
     'forecast': _forecast.round(),
     'savingsRate': _savingsRate.round(),
     'topExpenseCategories': _topExpense,
+    'expenseCategories': _expByCat.map((k, v) => MapEntry(k, v.round())),
   };
 
   // ── Send message ──────────────────────────────────────────────────────────
@@ -251,11 +267,17 @@ class _AiScreenState extends State<AiScreen> with TickerProviderStateMixin {
           'history': history,
           'uid': _uid,
           'sessionId': _sessionId,
+          'provider': _provider,
         }),
       ).timeout(const Duration(seconds: 30));
 
       final data = jsonDecode(resp.body) as Map;
-      final reply = data['reply'] ?? 'Нет ответа.';
+      if (resp.statusCode != 200) {
+        final errMsg = data['error']?.toString() ?? 'Ошибка сервера ${resp.statusCode}';
+        throw Exception(errMsg);
+      }
+      final reply = (data['reply'] as String?)?.trim();
+      if (reply == null || reply.isEmpty) throw Exception('Пустой ответ сервера');
       if (mounted) {
         setState(() {
           _messages.add(_Msg(role: 'ai', text: reply));
@@ -264,9 +286,12 @@ class _AiScreenState extends State<AiScreen> with TickerProviderStateMixin {
         _scrollToBottom();
       }
     } catch (e) {
+      final errText = e.toString().contains('SocketException') || e.toString().contains('TimeoutException') || e.toString().contains('Connection refused') || e.toString().contains('Failed host lookup')
+        ? '🌐 Сервер недоступен.\n\nВозможно, `flow-bot-rosy.vercel.app` заблокирован в вашей сети. Попробуйте VPN или подключитесь к другой сети.'
+        : '😔 Ошибка: ${e.toString().replaceAll('Exception: ', '')}';
       if (mounted) {
         setState(() {
-          _messages.add(_Msg(role: 'ai', text: 'Ошибка соединения 😔 Попробуй ещё раз.'));
+          _messages.add(_Msg(role: 'ai', text: errText));
           _thinking = false;
         });
       }
@@ -336,7 +361,11 @@ class _AiScreenState extends State<AiScreen> with TickerProviderStateMixin {
       backgroundColor: isDark ? const Color(0xFF0a0a14) : const Color(0xFFF5F5FA),
       body: Column(
         children: [
-          _Header(accent: accent, isDark: isDark),
+          _Header(
+            accent: accent, isDark: isDark,
+            provider: _provider,
+            onToggleProvider: () => setState(() => _provider = _provider == 'claude' ? 'gemini' : 'claude'),
+          ),
           if (_loadingCtx)
             const Expanded(child: Center(child: CircularProgressIndicator()))
           else ...[
@@ -405,7 +434,7 @@ class _AiScreenState extends State<AiScreen> with TickerProviderStateMixin {
                   itemCount: _kSuggestions.length,
                   separatorBuilder: (_, __) => const SizedBox(width: 8),
                   itemBuilder: (_, i) => GestureDetector(
-                    onTap: () => _send(_kSuggestions[i]),
+                    onTap: () => _send(_kSuggestions[i].msg),
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(
@@ -413,7 +442,7 @@ class _AiScreenState extends State<AiScreen> with TickerProviderStateMixin {
                         borderRadius: BorderRadius.circular(18),
                         border: Border.all(color: Colors.white.withOpacity(0.08)),
                       ),
-                      child: Text(_kSuggestions[i], style: TextStyle(fontSize: 12, color: isDark ? Colors.white70 : Colors.black54)),
+                      child: Text(_kSuggestions[i].label, style: TextStyle(fontSize: 12, color: isDark ? Colors.white70 : Colors.black54)),
                     ),
                   ),
                 ),
@@ -426,13 +455,13 @@ class _AiScreenState extends State<AiScreen> with TickerProviderStateMixin {
                   controller: _msgCtrl,
                   decoration: InputDecoration(
                     hintText: _listening ? '🎙 Слушаю…' : 'Спроси что-нибудь…',
-                    hintStyle: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 14),
+                    hintStyle: TextStyle(color: isDark ? Colors.white.withOpacity(0.3) : Colors.black.withOpacity(0.35), fontSize: 14),
                     filled: true,
                     fillColor: isDark ? const Color(0xFF16162a) : const Color(0xFFF0F0F8),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(22), borderSide: BorderSide.none),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
                   ),
-                  style: const TextStyle(fontSize: 14),
+                  style: TextStyle(fontSize: 14, color: isDark ? Colors.white : Colors.black87),
                   textCapitalization: TextCapitalization.sentences,
                   onSubmitted: _send,
                 ),
@@ -465,10 +494,13 @@ class _AiScreenState extends State<AiScreen> with TickerProviderStateMixin {
 class _Header extends StatelessWidget {
   final Color accent;
   final bool isDark;
-  const _Header({required this.accent, required this.isDark});
+  final String provider;
+  final VoidCallback onToggleProvider;
+  const _Header({required this.accent, required this.isDark, required this.provider, required this.onToggleProvider});
 
   @override
   Widget build(BuildContext context) {
+    final isGemini = provider == 'gemini';
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -477,7 +509,7 @@ class _Header extends StatelessWidget {
         ),
       ),
       child: SafeArea(bottom: false, child: Padding(
-        padding: const EdgeInsets.fromLTRB(4, 8, 16, 14),
+        padding: const EdgeInsets.fromLTRB(4, 8, 12, 14),
         child: Row(children: [
           IconButton(
             onPressed: () => Navigator.pop(context),
@@ -492,10 +524,31 @@ class _Header extends StatelessWidget {
             child: const Center(child: Text('✦', style: TextStyle(color: Colors.white, fontSize: 15))),
           ),
           const SizedBox(width: 10),
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             const Text('Flow AI', style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800, letterSpacing: -.4)),
             Text('Умный финансовый советник', style: TextStyle(color: Colors.white.withOpacity(0.55), fontSize: 11)),
-          ]),
+          ])),
+          // Provider toggle
+          GestureDetector(
+            onTap: onToggleProvider,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: isGemini ? const Color(0xFF1a73e8).withOpacity(0.2) : accent.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: isGemini ? const Color(0xFF4285f4) : accent, width: 1),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Text(isGemini ? '✦' : '◆', style: TextStyle(
+                  fontSize: 10, color: isGemini ? const Color(0xFF4285f4) : accent)),
+                const SizedBox(width: 5),
+                Text(isGemini ? 'Gemini' : 'Claude',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700,
+                    color: isGemini ? const Color(0xFF4285f4) : accent)),
+              ]),
+            ),
+          ),
         ]),
       )),
     );
@@ -592,7 +645,7 @@ class _Bubble extends StatelessWidget {
               border: isAI ? Border.all(color: Colors.white.withOpacity(0.06)) : null,
             ),
             child: Text(msg.text,
-              style: TextStyle(fontSize: 14, color: isAI ? Colors.white.withOpacity(0.9) : Colors.black.withOpacity(0.88), height: 1.45)),
+              style: TextStyle(fontSize: 14, color: isAI ? (isDark ? Colors.white.withOpacity(0.9) : Colors.black.withOpacity(0.85)) : Colors.black.withOpacity(0.88), height: 1.45)),
           )),
         ],
       ),

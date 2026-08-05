@@ -4,7 +4,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart';
-import 'package:yandex_mobileads/mobile_ads.dart';
 import 'providers/settings_provider.dart';
 import 'providers/auth_provider.dart';
 import 'screens/splash_screen.dart';
@@ -33,6 +32,14 @@ void main() async {
     debugPrint('❌ Ошибка инициализации Firebase: $e');
   }
 
+  // Реклама (Яндекс)
+  try {
+    await AdsService().initialize();
+    debugPrint('✅ AdsService инициализирован');
+  } catch (e) {
+    debugPrint('❌ Ошибка инициализации AdsService: $e');
+  }
+
   // Локализация
   Intl.defaultLocale = 'ru_RU';
   await initializeDateFormatting('ru_RU', null);
@@ -52,6 +59,8 @@ class FlowApp extends StatefulWidget {
   @override
   State<FlowApp> createState() => _FlowAppState();
 }
+
+final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 
 class _FlowAppState extends State<FlowApp> with WidgetsBindingObserver {
   @override
@@ -80,9 +89,14 @@ class _FlowAppState extends State<FlowApp> with WidgetsBindingObserver {
   // Показываем App Open Ad только для пользователей БЕЗ подписки
   Future<void> _showAppOpenAdIfNeeded() async {
     try {
+      // Провайдеры создаются ВНУТРИ build() этого виджета, поэтому контекст
+      // самого _FlowAppState их не видит. Берём контекст из-под навигатора.
+      final providerContext = rootNavigatorKey.currentContext;
+      if (providerContext == null) return;
+
       // Получаем провайдер подписки
-      final subscriptionProvider = context.read<SubscriptionProvider>();
-      
+      final subscriptionProvider = providerContext.read<SubscriptionProvider>();
+
       // Проверяем подписку
       if (subscriptionProvider.isActive) {
         debugPrint('⏭️ Пропускаем App Open Ad - есть активная подписка');
@@ -115,6 +129,7 @@ class _FlowAppState extends State<FlowApp> with WidgetsBindingObserver {
       child: Consumer<SettingsProvider>(
         builder: (context, settings, _) {
           return MaterialApp(
+            navigatorKey: rootNavigatorKey,
             title: 'Flow',
             debugShowCheckedModeBanner: false,
             theme: AppTheme.lightTheme,
@@ -137,6 +152,7 @@ class AppInitializer extends StatefulWidget {
 
 class _AppInitializerState extends State<AppInitializer> {
   bool _isInitializing = true;
+  String _lastInitializedUserId = '';
 
   @override
   void initState() {
@@ -144,26 +160,67 @@ class _AppInitializerState extends State<AppInitializer> {
     _initialize();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final authProvider = context.read<AuthProvider>();
+    authProvider.removeListener(_onAuthChanged);
+    authProvider.addListener(_onAuthChanged);
+  }
+
+  @override
+  void dispose() {
+    try {
+      context.read<AuthProvider>().removeListener(_onAuthChanged);
+    } catch (_) {}
+    super.dispose();
+  }
+
+  void _onAuthChanged() {
+    if (!mounted) return;
+    final authProvider = context.read<AuthProvider>();
+    final userId = authProvider.userId;
+    if (authProvider.isAuthenticated && userId.isNotEmpty && userId != _lastInitializedUserId) {
+      _reInitForUser(userId);
+    }
+  }
+
+  Future<void> _reInitForUser(String userId) async {
+    if (!mounted) return;
+    final settingsProvider = context.read<SettingsProvider>();
+    final subscriptionProvider = context.read<SubscriptionProvider>();
+    final goalProvider = context.read<GoalProvider>();
+    final goalsProvider = context.read<GoalsProvider>();
+    final firebaseDisplayName = context.read<AuthProvider>().user?.displayName ?? '';
+    await Future.wait([
+      settingsProvider.initialize(userId, firebaseDisplayName: firebaseDisplayName),
+      subscriptionProvider.initialize(userId),
+      goalProvider.loadGoals(userId),
+      goalsProvider.loadGoals(),
+    ]);
+    _lastInitializedUserId = userId;
+  }
+
   Future<void> _initialize() async {
     debugPrint('🚀 Начало инициализации приложения');
-    
+
     if (!mounted) return;
-    
+
     try {
       final authProvider = context.read<AuthProvider>();
       final settingsProvider = context.read<SettingsProvider>();
       final subscriptionProvider = context.read<SubscriptionProvider>();
       final goalProvider = context.read<GoalProvider>();
       final goalsProvider = context.read<GoalsProvider>();
-      
+
       debugPrint('🔍 Проверка авторизации...');
-      
+
       final isAuth = authProvider.isAuthenticated;
       final userId = authProvider.userId;
-      
+
       debugPrint('✅ isAuthenticated: $isAuth');
       debugPrint('✅ userId: $userId');
-      
+
       // Если пользователь авторизован - загружаем его данные
       if (isAuth && userId.isNotEmpty) {
         debugPrint('🔄 Загрузка данных пользователя...');
@@ -177,17 +234,19 @@ class _AppInitializerState extends State<AppInitializer> {
           goalProvider.loadGoals(userId),
           goalsProvider.loadGoals(),
         ]);
-        
+
+        _lastInitializedUserId = userId;
+
         debugPrint('✅ Данные пользователя загружены');
       } else {
         debugPrint('ℹ️ Пользователь не авторизован');
       }
-      
+
     } catch (e, stackTrace) {
       debugPrint('❌ Ошибка инициализации: $e');
       debugPrint('Stack trace: $stackTrace');
     }
-    
+
     if (mounted) {
       setState(() => _isInitializing = false);
       debugPrint('✅ Инициализация завершена');

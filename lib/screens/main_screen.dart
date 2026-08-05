@@ -1,12 +1,14 @@
-import '../screens/settings_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'dart:ui';
 import '../widgets/custom_bottom_nav.dart';
 import '../providers/settings_provider.dart';
-import 'home_screen.dart';
+import '../theme/coinka.dart';
 import 'finance_screen.dart';
-import 'calendar_screen.dart';
+import 'shifts_screen.dart';
+import 'tasks_screen.dart';
+import 'settings_screen.dart';
 import 'add_task_screen.dart';
 import 'ai_screen.dart';
 import 'add_transaction_screen.dart';
@@ -15,7 +17,7 @@ import 'accountant_report_screen.dart';
 
 class MainScreen extends StatefulWidget {
   final int initialTab;
-  
+
   const MainScreen({super.key, this.initialTab = 0});
 
   @override
@@ -30,9 +32,9 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
   late Animation<Offset> _menuSlide;
 
   // Ключи для принудительного пересоздания экранов
-  Key _homeKey = UniqueKey();
   Key _financeKey = UniqueKey();
-  Key _calendarKey = UniqueKey();
+  Key _shiftsKey = UniqueKey();
+  Key _tasksKey = UniqueKey();
   Key _settingsKey = UniqueKey();
   Key _accountantKey = UniqueKey();
 
@@ -67,44 +69,45 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
     if (mounted) setState(() => _showAddMenu = false);
   }
 
-  // index 4 = AccountantReportScreen (only shown when isAccountant)
+  // 0=Финансы, 1=Смены, 2=Задачи, 3=Настройки, 4=Табель (бухгалтер)
   Widget _screenForIndex(int index) {
     switch (index) {
-      case 0: return HomeScreen(key: _homeKey);
-      case 1: return FinanceScreen(key: _financeKey);
-      case 2: return CalendarScreen(key: _calendarKey);
+      case 0: return FinanceScreen(key: _financeKey);
+      case 1: return ShiftsScreen(key: _shiftsKey);
+      case 2: return TasksScreen(key: _tasksKey);
       case 3: return SettingsScreen(key: _settingsKey);
       case 4: return AccountantReportScreen(key: _accountantKey);
-      default: return HomeScreen(key: _homeKey);
+      default: return FinanceScreen(key: _financeKey);
     }
   }
 
-  // Метод для обновления всех экранов
   void _refreshAllScreens() {
     setState(() {
-      _homeKey = UniqueKey();
       _financeKey = UniqueKey();
-      _calendarKey = UniqueKey();
+      _shiftsKey = UniqueKey();
+      _tasksKey = UniqueKey();
       _settingsKey = UniqueKey();
       _accountantKey = UniqueKey();
     });
   }
 
-
   @override
   Widget build(BuildContext context) {
     final settings = Provider.of<SettingsProvider>(context);
-    final isDark = settings.isDarkMode;
     final isAccountant = settings.isAccountant;
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: context.ckBg,
       body: Stack(
         children: [
           _screenForIndex(_currentIndex),
-          if (_showAddMenu) _buildAddMenu(isDark),
+          if (_showAddMenu) _buildAddMenu(),
         ],
       ),
+      // «+» вынесена в floating-кнопку НАД таб-баром, чтобы все вкладки
+      // (включая «Табель») ровно помещались в ряд.
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: _showAddMenu ? null : _buildAddFab(),
       bottomNavigationBar: CustomBottomNav(
         currentIndex: _currentIndex,
         showAccountantTab: isAccountant,
@@ -113,23 +116,42 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
             _currentIndex = index;
           });
         },
-        onAddPressed: _openMenu,
       ),
     );
   }
 
-  Widget _buildAddMenu(bool isDark) {
-    final settings = Provider.of<SettingsProvider>(context, listen: false);
-    final accent = settings.accentColor;
+  Widget _buildAddFab() {
+    return GestureDetector(
+      onTap: () { HapticFeedback.mediumImpact(); _openMenu(); },
+      child: Container(
+        width: 58,
+        height: 58,
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Coinka.accent2, Coinka.accent],
+          ),
+          borderRadius: BorderRadius.circular(19),
+          boxShadow: [
+            BoxShadow(color: Coinka.accent.withOpacity(0.4), blurRadius: 18, offset: const Offset(0, 6)),
+          ],
+        ),
+        child: const Icon(Icons.add_rounded, color: Colors.white, size: 30),
+      ),
+    );
+  }
 
+  Widget _buildAddMenu() {
     final items = [
       _MenuItemData(
         title: 'Смену',
         subtitle: 'Добавить в график',
-        icon: Icons.event_available_rounded,
-        color: accent,
+        emoji: '📅',
+        color: Coinka.accent2,
         onTap: () async {
           await _closeMenu();
+          if (!mounted) return;
           final result = await Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const AddShiftScreen()),
@@ -140,10 +162,11 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
       _MenuItemData(
         title: 'Операцию',
         subtitle: 'Доход или расход',
-        icon: Icons.account_balance_wallet_rounded,
-        color: const Color(0xFF10b981),
+        emoji: '💰',
+        color: Coinka.green,
         onTap: () async {
           await _closeMenu();
+          if (!mounted) return;
           final result = await Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const AddTransactionScreen()),
@@ -154,10 +177,11 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
       _MenuItemData(
         title: 'Задачу',
         subtitle: 'Напоминание или дело',
-        icon: Icons.check_circle_outline_rounded,
-        color: const Color(0xFF3b82f6),
+        emoji: '✅',
+        color: const Color(0xFF3B82F6),
         onTap: () async {
           await _closeMenu();
+          if (!mounted) return;
           final result = await Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const AddTaskScreen()),
@@ -168,8 +192,8 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
       _MenuItemData(
         title: 'Flow AI',
         subtitle: 'Советник и прогноз',
-        icon: Icons.auto_awesome_rounded,
-        color: const Color(0xFF00e5b3),
+        emoji: '✦',
+        color: Coinka.accent,
         onTap: () async {
           await _closeMenu();
           if (mounted) {
@@ -184,9 +208,9 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
       child: GestureDetector(
         onTap: _closeMenu,
         child: Container(
-          color: Colors.black.withOpacity(0.4),
+          color: Colors.black.withOpacity(0.6),
           child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
             child: Align(
               alignment: Alignment.bottomCenter,
               child: SlideTransition(
@@ -194,71 +218,55 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                 child: GestureDetector(
                   onTap: () {},
                   child: Container(
-                    margin: const EdgeInsets.fromLTRB(16, 0, 16, 104),
+                    margin: const EdgeInsets.fromLTRB(12, 0, 12, 90),
                     decoration: BoxDecoration(
-                      color: isDark
-                          ? const Color(0xFF1a1f2e).withOpacity(0.98)
-                          : Colors.white.withOpacity(0.98),
-                      borderRadius: BorderRadius.circular(28),
-                      border: Border.all(
-                        color: isDark
-                            ? Colors.white.withOpacity(0.1)
-                            : Colors.black.withOpacity(0.06),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(isDark ? 0.5 : 0.15),
-                          blurRadius: 40,
-                          offset: const Offset(0, -8),
-                        ),
-                      ],
+                      color: context.ckS1,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: context.ckBorder),
                     ),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         // Handle
                         Padding(
-                          padding: const EdgeInsets.only(top: 12, bottom: 4),
+                          padding: const EdgeInsets.only(top: 14, bottom: 4),
                           child: Container(
                             width: 36,
                             height: 4,
                             decoration: BoxDecoration(
-                              color: isDark
-                                  ? Colors.white.withOpacity(0.2)
-                                  : Colors.black.withOpacity(0.12),
+                              color: context.ckBorder,
                               borderRadius: BorderRadius.circular(2),
                             ),
                           ),
                         ),
                         // Title
                         Padding(
-                          padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
+                          padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(
                                 'Создать',
                                 style: TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w700,
-                                  color: isDark ? Colors.white : const Color(0xFF1e293b),
-                                  letterSpacing: -0.5,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                  color: context.ckText,
+                                  letterSpacing: -0.4,
                                 ),
                               ),
                               GestureDetector(
                                 onTap: _closeMenu,
                                 child: Container(
-                                  padding: const EdgeInsets.all(8),
+                                  width: 30,
+                                  height: 30,
                                   decoration: BoxDecoration(
-                                    color: isDark
-                                        ? Colors.white.withOpacity(0.08)
-                                        : Colors.black.withOpacity(0.05),
-                                    borderRadius: BorderRadius.circular(10),
+                                    color: context.ckS2,
+                                    shape: BoxShape.circle,
                                   ),
                                   child: Icon(
                                     Icons.close_rounded,
-                                    size: 18,
-                                    color: isDark ? Colors.white60 : Colors.black45,
+                                    size: 16,
+                                    color: context.ckHint,
                                   ),
                                 ),
                               ),
@@ -271,12 +279,11 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                           final item = e.value;
                           return _AnimatedMenuItem(
                             data: item,
-                            isDark: isDark,
                             delay: Duration(milliseconds: i * 50),
                             parentController: _menuController,
                           );
                         }),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 14),
                       ],
                     ),
                   ),
@@ -288,20 +295,19 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
       ),
     );
   }
-
 }
 
 class _MenuItemData {
   final String title;
   final String subtitle;
-  final IconData icon;
+  final String emoji;
   final Color color;
   final VoidCallback onTap;
 
   const _MenuItemData({
     required this.title,
     required this.subtitle,
-    required this.icon,
+    required this.emoji,
     required this.color,
     required this.onTap,
   });
@@ -309,13 +315,11 @@ class _MenuItemData {
 
 class _AnimatedMenuItem extends StatelessWidget {
   final _MenuItemData data;
-  final bool isDark;
   final Duration delay;
   final AnimationController parentController;
 
   const _AnimatedMenuItem({
     required this.data,
-    required this.isDark,
     required this.delay,
     required this.parentController,
   });
@@ -345,30 +349,37 @@ class _AnimatedMenuItem extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
           child: Material(
             color: Colors.transparent,
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(16),
             child: InkWell(
               onTap: data.onTap,
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(16),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 decoration: BoxDecoration(
-                  color: isDark
-                      ? Colors.white.withOpacity(0.05)
-                      : data.color.withOpacity(0.05),
-                  borderRadius: BorderRadius.circular(18),
+                  color: context.ckCard,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: context.ckBorder),
                 ),
                 child: Row(
                   children: [
                     Container(
-                      width: 46,
-                      height: 46,
+                      width: 42,
+                      height: 42,
+                      alignment: Alignment.center,
                       decoration: BoxDecoration(
-                        color: data.color.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(14),
+                        color: data.color.withOpacity(0.13),
+                        borderRadius: BorderRadius.circular(13),
                       ),
-                      child: Icon(data.icon, color: data.color, size: 22),
+                      child: Text(
+                        data.emoji,
+                        style: TextStyle(
+                          fontSize: 19,
+                          color: data.color,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
-                    const SizedBox(width: 14),
+                    const SizedBox(width: 13),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -376,9 +387,9 @@ class _AnimatedMenuItem extends StatelessWidget {
                           Text(
                             data.title,
                             style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: isDark ? Colors.white : const Color(0xFF1e293b),
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: context.ckText,
                               letterSpacing: -0.2,
                             ),
                           ),
@@ -386,26 +397,17 @@ class _AnimatedMenuItem extends StatelessWidget {
                           Text(
                             data.subtitle,
                             style: TextStyle(
-                              fontSize: 13,
-                              color: isDark
-                                  ? Colors.white38
-                                  : Colors.black38,
+                              fontSize: 12,
+                              color: context.ckHint,
                             ),
                           ),
                         ],
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: data.color.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        Icons.arrow_forward_rounded,
-                        size: 14,
-                        color: data.color,
-                      ),
+                    Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      size: 13,
+                      color: data.color,
                     ),
                   ],
                 ),

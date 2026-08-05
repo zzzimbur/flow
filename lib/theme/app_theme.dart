@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'coinka.dart';
 
 class AppTheme {
   // Светлая тема - цвета
@@ -24,49 +25,55 @@ class AppTheme {
   static ThemeData lightTheme = ThemeData(
     useMaterial3: true,
     brightness: Brightness.light,
-    primaryColor: lightPrimary,
-    scaffoldBackgroundColor: lightBackground,
-    fontFamily: 'Inter',
-    colorScheme: const ColorScheme.light(
-      primary: lightPrimary,
-      secondary: accentPurple,
-      surface: lightCardColor,
-      background: lightBackground,
+    primaryColor: Coinka.accent,
+    scaffoldBackgroundColor: CoinkaL.bg,
+    colorScheme: ColorScheme.light(
+      primary: Coinka.accent,
+      secondary: Coinka.accent2,
+      surface: CoinkaL.card,
+      surfaceContainerHighest: CoinkaL.s2,
+      onSurface: CoinkaL.text,
+      outline: CoinkaL.border,
     ),
-    appBarTheme: const AppBarTheme(
+    cardColor: CoinkaL.card,
+    dividerColor: CoinkaL.border,
+    appBarTheme: AppBarTheme(
       elevation: 0,
-      backgroundColor: Colors.transparent,
-      iconTheme: IconThemeData(color: lightTextPrimary),
-      titleTextStyle: TextStyle(
-        color: lightTextPrimary,
-        fontSize: 20,
-        fontWeight: FontWeight.w600,
+      backgroundColor: CoinkaL.bg,
+      iconTheme: const IconThemeData(color: CoinkaL.text),
+      titleTextStyle: const TextStyle(
+        color: CoinkaL.text, fontSize: 20, fontWeight: FontWeight.w700,
       ),
     ),
+    iconTheme: const IconThemeData(color: CoinkaL.hint),
+    textTheme: ThemeData.light().textTheme.apply(bodyColor: CoinkaL.text, displayColor: CoinkaL.text),
   );
-  
+
   static ThemeData darkTheme = ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,
-    primaryColor: darkPrimary,
-    scaffoldBackgroundColor: darkBackground,
-    fontFamily: 'Inter',
-    colorScheme: const ColorScheme.dark(
-      primary: darkPrimary,
-      secondary: accentPurple,
-      surface: darkCardColor,
-      background: darkBackground,
+    primaryColor: Coinka.accent,
+    scaffoldBackgroundColor: Coinka.bg,
+    colorScheme: ColorScheme.dark(
+      primary: Coinka.accent,
+      secondary: Coinka.accent2,
+      surface: Coinka.card,
+      surfaceContainerHighest: Coinka.s2,
+      onSurface: Coinka.text,
+      outline: Coinka.border,
     ),
+    cardColor: Coinka.card,
+    dividerColor: Coinka.border,
     appBarTheme: const AppBarTheme(
       elevation: 0,
-      backgroundColor: Colors.transparent,
-      iconTheme: IconThemeData(color: darkTextPrimary),
+      backgroundColor: Coinka.bg,
+      iconTheme: IconThemeData(color: Coinka.text),
       titleTextStyle: TextStyle(
-        color: darkTextPrimary,
-        fontSize: 20,
-        fontWeight: FontWeight.w600,
+        color: Coinka.text, fontSize: 20, fontWeight: FontWeight.w700,
       ),
     ),
+    iconTheme: const IconThemeData(color: Coinka.hint),
+    textTheme: ThemeData.dark().textTheme.apply(bodyColor: Coinka.text, displayColor: Coinka.text),
   );
 }
 

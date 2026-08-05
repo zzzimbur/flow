@@ -170,7 +170,7 @@ class ShiftEvent extends CalendarEvent {
       shiftRate: map['shiftRate']?.toDouble() ?? 0.0,
       paymentType: map['paymentType'] ?? 'hourly',
       isFilled: map['isFilled'] ?? false,
-      icon: IconData(map['icon'], fontFamily: 'MaterialIcons'),
+      icon: IconData(map['icon'] as int, fontFamily: 'MaterialIcons'),
       note: map['note'],
     );
   }

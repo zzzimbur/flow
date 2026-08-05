@@ -25,7 +25,7 @@ class SettingsProvider extends ChangeNotifier {
   String _userId = '';
   
   // Настройки приложения
-  ThemeMode _themeMode = ThemeMode.light;
+  ThemeMode _themeMode = ThemeMode.dark;
   String _currency = '₽ Рубль';
   String _selectedThemeId = 'purple'; // ID выбранной темы
   bool _isLoaded = false; // Флаг загрузки настроек
@@ -142,12 +142,13 @@ class SettingsProvider extends ChangeNotifier {
   void setThemeMode(ThemeMode mode) {
     _themeMode = mode;
     notifyListeners();
+    _saveToPrefs();
   }
   
 
   Future<void> _loadFromPrefs() async {
     _prefs ??= await SharedPreferences.getInstance();
-    final isDark = _prefs!.getBool('isDarkMode') ?? false;
+    final isDark = _prefs!.getBool('isDarkMode') ?? true;
     _themeMode = isDark ? ThemeMode.dark : ThemeMode.light;
     _currency = _prefs!.getString('currency') ?? '₽ Рубль';
     _selectedThemeId = _prefs!.getString('themeId') ?? 'purple';
@@ -252,7 +253,7 @@ class SettingsProvider extends ChangeNotifier {
         _userRole = data?['role'] ?? 'employee';
 
         // Загружаем тему
-        final isDark = data?['isDarkMode'] ?? false;
+        final isDark = data?['isDarkMode'] ?? true;
         _themeMode = isDark ? ThemeMode.dark : ThemeMode.light;
 
         // Кешируем в локальное хранилище для следующего запуска

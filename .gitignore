@@ -18,3 +18,5 @@ pubspec.lock
 pubspec.yaml
 .env
 *.env
+.vercel
+.env*

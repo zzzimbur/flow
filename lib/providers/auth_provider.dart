@@ -339,7 +339,7 @@ class AuthProvider extends ChangeNotifier {
   Future<bool> signInWithYandex() async {
     return _signInWithOAuth(
       provider: 'yandex',
-      authUrl: 'https://flow-bot-rosy.vercel.app/api/oauth/yandex',
+      authUrl: 'https://flow-ai.prostozapaska.workers.dev/auth/yandex',
       displayName: 'Yandex ID',
     );
   }
@@ -348,7 +348,7 @@ class AuthProvider extends ChangeNotifier {
   Future<bool> signInWithTelegram() async {
     return _signInWithOAuth(
       provider: 'telegram',
-      authUrl: 'https://flow-bot-rosy.vercel.app/api/oauth/telegram',
+      authUrl: 'https://flow-ai.prostozapaska.workers.dev/auth/telegram',
       displayName: 'Telegram',
     );
   }

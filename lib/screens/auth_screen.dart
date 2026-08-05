@@ -153,7 +153,7 @@ class _AuthScreenState extends State<AuthScreen> {
                           Align(
                             alignment: Alignment.centerRight,
                             child: TextButton(
-                              onPressed: () {},
+                              onPressed: () => _handleForgotPassword(),
                               child: Text(
                                 'Забыли пароль?',
                                 style: TextStyle(
@@ -216,22 +216,13 @@ class _AuthScreenState extends State<AuthScreen> {
                           onTap: () => _handleSocialAuth('google'),
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: _SocialButton(
                           label: 'Яндекс',
                           isDark: isDark,
                           icon: _yandexIcon(),
                           onTap: () => _handleSocialAuth('yandex'),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _SocialButton(
-                          label: 'Telegram',
-                          isDark: isDark,
-                          icon: _telegramIcon(),
-                          onTap: () => _handleSocialAuth('telegram'),
                         ),
                       ),
                     ],
@@ -469,6 +460,33 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
+  Future<void> _handleForgotPassword() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty) {
+      _showError('Введите email в поле выше');
+      return;
+    }
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final success = await authProvider.resetPassword(email);
+    if (!mounted) return;
+    if (success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(children: [
+            Icon(Icons.check_circle_outline, color: Colors.white),
+            SizedBox(width: 12),
+            Expanded(child: Text('Письмо со сбросом пароля отправлено')),
+          ]),
+          backgroundColor: const Color(0xFF00c896),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        ),
+      );
+    } else {
+      _showError('Не удалось отправить письмо. Проверьте email.');
+    }
+  }
+
   void _showError(String message) {
     if (!mounted) return;
 
@@ -504,9 +522,6 @@ class _AuthScreenState extends State<AuthScreen> {
         case 'yandex':
           success = await authProvider.signInWithYandex();
           break;
-        case 'telegram':
-          success = await authProvider.signInWithTelegram();
-          break;
       }
     } catch (_) {}
 
@@ -532,17 +547,6 @@ class _AuthScreenState extends State<AuthScreen> {
     'https://www.google.com/favicon.ico',
     width: 18, height: 18,
     errorBuilder: (_, __, ___) => const Icon(Icons.g_mobiledata, size: 20),
-  );
-
-  Widget _telegramIcon() => Container(
-    width: 18, height: 18,
-    decoration: BoxDecoration(
-      color: const Color(0xFF26A5E4),
-      borderRadius: BorderRadius.circular(4),
-    ),
-    child: const Center(
-      child: Icon(Icons.send_rounded, color: Colors.white, size: 12),
-    ),
   );
 
   Widget _yandexIcon() => Container(

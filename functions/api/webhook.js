@@ -357,133 +357,127 @@ module.exports = async function handler(req, res) {
   }
 
   const update = req.body;
-  res.status(200).send('ok'); // ack immediately
 
-  // ── Callback queries (inline buttons) ──
-  if (update?.callback_query) {
-    const cq = update.callback_query;
-    const tgId = cq.from.id;
-    const chatId = cq.message?.chat?.id;
-    const data = cq.data;
+  // Process everything BEFORE sending 200 — Vercel Lambda kills the function
+  // immediately after res.end(), so async work after res.send() never runs.
+  try {
+    // ── Callback queries (inline buttons) ──
+    if (update?.callback_query) {
+      const cq = update.callback_query;
+      const tgId = cq.from.id;
+      const chatId = cq.message?.chat?.id;
+      const data = cq.data;
 
-    try {
-      const uid = await getTgUidFromId(tgId) ?? await ensureTelegramUser(cq.from);
-      if (data === 'buy_premium') {
-        await answerCallback(botToken, cq.id, '');
-        await sendInvoice(botToken, chatId);
-      } else if (data.startsWith('fb_')) {
-        await handleFeedback(uid, data, botToken, cq.id);
-      }
-    } catch (e) { console.error('callback error:', e); }
-    return;
-  }
+      try {
+        const uid = await getTgUidFromId(tgId) ?? await ensureTelegramUser(cq.from);
+        if (data === 'buy_premium') {
+          await answerCallback(botToken, cq.id, '');
+          await sendInvoice(botToken, chatId);
+        } else if (data.startsWith('fb_')) {
+          await handleFeedback(uid, data, botToken, cq.id);
+        }
+      } catch (e) { console.error('callback error:', e); }
+      res.status(200).send('ok');
+      return;
+    }
 
-  // ── Pre-checkout query ──
-  if (update?.pre_checkout_query) {
-    const pcq = update.pre_checkout_query;
-    await answerPreCheckout(botToken, pcq.id, true);
-    return;
-  }
+    // ── Pre-checkout query ──
+    if (update?.pre_checkout_query) {
+      const pcq = update.pre_checkout_query;
+      await answerPreCheckout(botToken, pcq.id, true);
+      res.status(200).send('ok');
+      return;
+    }
 
-  const message = update?.message;
-  if (!message?.from || message.from.is_bot) return;
+    const message = update?.message;
+    if (!message?.from || message.from.is_bot) { res.status(200).send('ok'); return; }
 
-  // ── Successful payment ──
-  if (message?.successful_payment) {
+    // ── Successful payment ──
+    if (message?.successful_payment) {
+      try {
+        const uid = await ensureTelegramUser(message.from);
+        await activatePremium(uid, 1);
+        await sendMessage(botToken, message.chat.id,
+          '✦ <b>Flow AI активирован на 1 месяц!</b>\n\n' +
+          'Теперь доступно:\n• /прогноз — прогноз доходов\n• /советы — AI-советы\n• /отчёт — месячный отчёт\n• Просто напиши любой вопрос — отвечу как AI-советник\n\nTакже все AI-функции открыты в приложении Flow 🚀'
+        );
+      } catch (e) { console.error('payment error:', e); }
+      res.status(200).send('ok');
+      return;
+    }
+
+    if (!message?.text) { res.status(200).send('ok'); return; }
+
+    const chatId = message.chat.id;
+    const text = message.text.trim();
+
     try {
       const uid = await ensureTelegramUser(message.from);
-      await activatePremium(uid, 1);
-      await sendMessage(botToken, message.chat.id,
-        '✦ <b>Flow AI активирован на 1 месяц!</b>\n\n' +
-        'Теперь доступно:\n• /прогноз — прогноз доходов\n• /советы — AI-советы\n• /отчёт — месячный отчёт\n• Просто напиши любой вопрос — отвечу как AI-советник\n\nTакже все AI-функции открыты в приложении Flow 🚀'
-      );
-    } catch (e) { console.error('payment error:', e); }
-    return;
-  }
 
-  if (!message?.text) return;
-
-  const chatId = message.chat.id;
-  const text = message.text.trim();
-
-  try {
-    const uid = await ensureTelegramUser(message.from);
-
-    // ── Commands ──
-    if (text.startsWith('/start') || text.startsWith('/help')) {
-      await sendMessage(botToken, chatId, HELP_TEXT);
-      return;
-    }
-    if (text.startsWith('/premium')) {
-      await sendInvoice(botToken, chatId);
-      return;
-    }
-    if (text.startsWith('/link')) {
-      const code = text.split(/\s+/)[1];
-      if (!code) await sendMessage(botToken, chatId, 'Использование: <code>/link КОД</code>');
-      else await handleLinkCommand(uid, message.from, code, botToken, chatId);
-      return;
-    }
-    if (text.startsWith('/прогноз') || text.startsWith('/forecast')) {
-      await handleForecast(uid, botToken, chatId); return;
-    }
-    if (text.startsWith('/отчёт') || text.startsWith('/report')) {
-      await handleReport(uid, botToken, chatId); return;
-    }
-    if (text.startsWith('/советы') || text.startsWith('/tips')) {
-      await handleTips(uid, botToken, chatId); return;
-    }
-    if (text.startsWith('/ai') || text.startsWith('/советник')) {
-      const question = text.replace(/^\/\w+\s*/, '').trim();
-      if (!question) {
-        await sendMessage(botToken, chatId, '✦ <b>Flow AI</b> — просто задай вопрос!\n\nНапример:\n• <i>Сколько я заработаю в следующем месяце?</i>\n• <i>Дай совет по расходам</i>\n• <i>Как мне работать эффективнее?</i>');
+      // ── Commands ──
+      if (text.startsWith('/start') || text.startsWith('/help')) {
+        await sendMessage(botToken, chatId, HELP_TEXT);
+      } else if (text.startsWith('/premium')) {
+        await sendInvoice(botToken, chatId);
+      } else if (text.startsWith('/link')) {
+        const code = text.split(/\s+/)[1];
+        if (!code) await sendMessage(botToken, chatId, 'Использование: <code>/link КОД</code>');
+        else await handleLinkCommand(uid, message.from, code, botToken, chatId);
+      } else if (text.startsWith('/прогноз') || text.startsWith('/forecast')) {
+        await handleForecast(uid, botToken, chatId);
+      } else if (text.startsWith('/отчёт') || text.startsWith('/report')) {
+        await handleReport(uid, botToken, chatId);
+      } else if (text.startsWith('/советы') || text.startsWith('/tips')) {
+        await handleTips(uid, botToken, chatId);
+      } else if (text.startsWith('/ai') || text.startsWith('/советник')) {
+        const question = text.replace(/^\/\w+\s*/, '').trim();
+        if (!question) {
+          await sendMessage(botToken, chatId, '✦ <b>Flow AI</b> — просто задай вопрос!\n\nНапример:\n• <i>Сколько я заработаю в следующем месяце?</i>\n• <i>Дай совет по расходам</i>\n• <i>Как мне работать эффективнее?</i>');
+        } else {
+          await handleAIMessage(uid, message.from.id, question, botToken, chatId);
+        }
       } else {
-        await handleAIMessage(uid, message.from.id, question, botToken, chatId);
+        // ── Parse: смена → финансы → задача ──
+        const shiftParsed = parseShiftMessage(text);
+        if (shiftParsed) {
+          const template = await findShiftTemplate(uid, shiftParsed.name);
+          if (template) {
+            const created = await createShift(uid, shiftParsed, template);
+            await sendMessage(botToken, chatId, formatShiftReply(shiftParsed, template, created));
+          } else {
+            const date = new Date();
+            const startTime = new Date(date.getFullYear(), date.getMonth(), date.getDate(), shiftParsed.startHour, shiftParsed.startMinute);
+            const taskParsed = { title: shiftParsed.name.charAt(0).toUpperCase() + shiftParsed.name.slice(1), date, startTime, priority: 'none', note: null };
+            await createTask(uid, taskParsed);
+            await sendMessage(botToken, chatId, formatTaskReply(taskParsed) + '\n\n<i>Шаблон не найден — создано как событие.</i>');
+          }
+        } else {
+          const financeParsed = parseFinanceMessage(text);
+          if (financeParsed) {
+            await createTransaction(uid, financeParsed);
+            await sendMessage(botToken, chatId, formatFinanceReply(financeParsed));
+          } else {
+            const taskParsed = parseTaskMessage(text);
+            if (taskParsed) {
+              await createTask(uid, taskParsed);
+              await sendMessage(botToken, chatId, formatTaskReply(taskParsed));
+            } else {
+              // Fallback: AI если ничего не распознано
+              const isQuestion = /[?а-яё]{4,}/i.test(text) && text.split(' ').length > 2;
+              if (isQuestion) {
+                await handleAIMessage(uid, message.from.id, text, botToken, chatId);
+              } else {
+                await sendMessage(botToken, chatId, 'Не понял 🤔\n/help — что умею\n/ai — AI-советник');
+              }
+            }
+          }
+        }
       }
-      return;
+    } catch (e) {
+      console.error('update error:', e);
+      try { await sendMessage(botToken, chatId, '⚠️ Что-то пошло не так, попробуй ещё раз.'); } catch {}
     }
-
-    // ── Parse: смена → финансы → задача ──
-    const shiftParsed = parseShiftMessage(text);
-    if (shiftParsed) {
-      const template = await findShiftTemplate(uid, shiftParsed.name);
-      if (template) {
-        const created = await createShift(uid, shiftParsed, template);
-        await sendMessage(botToken, chatId, formatShiftReply(shiftParsed, template, created));
-      } else {
-        const date = new Date();
-        const startTime = new Date(date.getFullYear(), date.getMonth(), date.getDate(), shiftParsed.startHour, shiftParsed.startMinute);
-        const taskParsed = { title: shiftParsed.name.charAt(0).toUpperCase() + shiftParsed.name.slice(1), date, startTime, priority: 'none', note: null };
-        await createTask(uid, taskParsed);
-        await sendMessage(botToken, chatId, formatTaskReply(taskParsed) + '\n\n<i>Шаблон не найден — создано как событие.</i>');
-      }
-      return;
-    }
-
-    const financeParsed = parseFinanceMessage(text);
-    if (financeParsed) {
-      await createTransaction(uid, financeParsed);
-      await sendMessage(botToken, chatId, formatFinanceReply(financeParsed));
-      return;
-    }
-
-    const taskParsed = parseTaskMessage(text);
-    if (taskParsed) {
-      await createTask(uid, taskParsed);
-      await sendMessage(botToken, chatId, formatTaskReply(taskParsed));
-      return;
-    }
-
-    // ── Fallback: AI если ничего не распознано ──
-    // Если сообщение похоже на вопрос или длиннее 3 слов — пробуем AI
-    const isQuestion = /[?а-яё]{4,}/i.test(text) && text.split(' ').length > 2;
-    if (isQuestion) {
-      await handleAIMessage(uid, message.from.id, text, botToken, chatId);
-    } else {
-      await sendMessage(botToken, chatId, 'Не понял 🤔\n/help — что умею\n/ai — AI-советник');
-    }
-  } catch (e) {
-    console.error('update error:', e);
-    try { await sendMessage(botToken, chatId, '⚠️ Что-то пошло не так, попробуй ещё раз.'); } catch {}
+  } finally {
+    if (!res.headersSent) res.status(200).send('ok');
   }
 };

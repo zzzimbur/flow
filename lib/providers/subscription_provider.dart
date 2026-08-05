@@ -42,8 +42,11 @@ class SubscriptionProvider extends ChangeNotifier {
   bool get canScanReceipt => isPremium;
   bool get canUseVoiceInput => isPremium;
 
-  // Загрузить данные подписки
-  Future<void> initialize(String userId) async {
+  // Загрузить данные подписки.
+  // Устойчиво к временным сбоям: на старте Firebase Auth может на доли секунды
+  // «моргнуть» (особенно по Wi-Fi), и Firestore вернёт permission-denied.
+  // В таком случае повторяем попытку, чтобы подписка не «слетала» зря.
+  Future<void> initialize(String userId, {int attempt = 0}) async {
     if (userId.isEmpty) {
       _isLoaded = true;
       notifyListeners();
@@ -77,6 +80,14 @@ class SubscriptionProvider extends ChangeNotifier {
       _isLoaded = true;
       notifyListeners();
     } catch (e) {
+      // Повторяем при временной ошибке (auth ещё не устаканился / нет сети).
+      final transient = e is FirebaseException &&
+          (e.code == 'permission-denied' || e.code == 'unavailable');
+      if (transient && attempt < 3) {
+        print('⏳ Подписка: временная ошибка ($e), повтор #${attempt + 1}');
+        await Future.delayed(Duration(milliseconds: 500 * (attempt + 1)));
+        return initialize(userId, attempt: attempt + 1);
+      }
       print('Ошибка загрузки подписки: $e');
       _isLoaded = true;
       notifyListeners();
@@ -110,6 +121,16 @@ class SubscriptionProvider extends ChangeNotifier {
     } catch (e) {
       print('Ошибка активации подписки: $e');
     }
+  }
+
+  // Сбросить состояние при выходе из аккаунта
+  void reset() {
+    _isActive = false;
+    _type = SubscriptionType.free;
+    _expiresAt = null;
+    _startedAt = null;
+    _isLoaded = false;
+    notifyListeners();
   }
 
   // Отменить подписку

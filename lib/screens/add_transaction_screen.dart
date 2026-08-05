@@ -4,7 +4,6 @@ import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
-import '../widgets/enhanced_glass_card.dart';
 import '../widgets/ios_time_picker.dart';
 import '../providers/settings_provider.dart';
 import 'package:flutter/services.dart';
@@ -16,6 +15,7 @@ import '../providers/goals_provider.dart';
 import '../services/template_service.dart';
 import '../models/template_model.dart';
 import '../providers/subscription_provider.dart';
+import '../theme/coinka.dart';
 
 class AddTransactionScreen extends StatefulWidget {
   const AddTransactionScreen({super.key});
@@ -89,588 +89,281 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final settings = Provider.of<SettingsProvider>(context);
-    final isDark = settings.isDarkMode;
+    final currency = context.read<SettingsProvider>().currencySymbol;
+    final amountColor = _isIncome ? Coinka.green : Coinka.red;
 
     return Scaffold(
-      body: AnimatedBackground(
-        isDark: isDark,
-        child: SafeArea(
-          child: Column(
-            children: [
-              // Хедер
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: Icon(
-                        Icons.close,
-                        color: isDark ? Colors.white : const Color(0xFF1e293b),
-                      ),
-                      onPressed: () {
-                        HapticFeedback.lightImpact();
-                        Navigator.pop(context);
-                      },
+      backgroundColor: context.ckBg,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 8, 16, 0),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: Icon(Icons.close_rounded, color: context.ckHint),
+                    onPressed: () { HapticFeedback.lightImpact(); Navigator.pop(context); },
+                  ),
+                  Expanded(
+                    child: Text('Новая операция', style: TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.w700, color: context.ckText,
+                    )),
+                  ),
+                  GestureDetector(
+                    onTap: _scanReceipt,
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 6),
+                      child: Text('📄', style: TextStyle(fontSize: 20)),
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Новая операция',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w600,
-                          color: isDark ? Colors.white : const Color(0xFF1e293b),
+                  ),
+                  GestureDetector(
+                    onTap: _saveAsTemplate,
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 6),
+                      child: Text('📋', style: TextStyle(fontSize: 20)),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: _loadFromTemplate,
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 4),
+                      child: Text('📂', style: TextStyle(fontSize: 20)),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  if (_isSaving)
+                    const SizedBox(width: 20, height: 20,
+                      child: CircularProgressIndicator(color: Coinka.accent, strokeWidth: 2))
+                  else
+                    GestureDetector(
+                      onTap: _saveTransaction,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(colors: [Coinka.accent2, Coinka.accent]),
+                          borderRadius: BorderRadius.circular(20),
                         ),
+                        child: const Text('Готово', style: TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white,
+                        )),
                       ),
                     ),
-                    // сканирование чека
-                    IconButton(
-                      icon: const Icon(Icons.document_scanner_rounded, color: Color(0xFF00e5b3)),
-                      onPressed: _scanReceipt,
-                      tooltip: 'Сканировать чек',
-                    ),
-                    // кнопка шаблона
-                    IconButton(
-                      icon: const Icon(
-                        Icons.bookmark_add_outlined,
-                        color: Color(0xFF8b7ff5),
-                      ),
-                      onPressed: _saveAsTemplate,
-                      tooltip: 'Сохранить как шаблон',
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.bookmark_outlined,
-                        color: Color(0xFF8b7ff5),
-                      ),
-                      onPressed: _loadFromTemplate,
-                      tooltip: 'Загрузить из шаблона',
-                    ),
-                    if (_isSaving)
-                      const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8b7ff5)),
-                        ),
-                      )
-                    else
-                      TextButton(
-                        onPressed: _saveTransaction,
-                        child: const Text(
-                          'Готово',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF8b7ff5),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
+                ],
               ),
+            ),
 
-              // Контент
-              Expanded(
-                child: SingleChildScrollView(
-                  child: Column(
-                    children: [
-                      // Тип операции (Доход/Расход)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: EnhancedGlassCard(
-                          padding: const EdgeInsets.all(4),
-                          color: isDark
-                              ? const Color(0xFF1e293b).withOpacity(0.5)
-                              : Colors.white.withOpacity(0.7),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: _buildTypeButton('Расход', false, isDark),
-                              ),
-                              Expanded(
-                                child: _buildTypeButton('Доход', true, isDark),
-                              ),
-                            ],
-                          ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Доход / Расход toggle
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: context.ckCard,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: context.ckBorder),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(child: _buildTypeButton('Расход', false)),
+                          Expanded(child: _buildTypeButton('Доход', true)),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Сумма
+                    Center(
+                      child: Column(
+                        children: [
+                          Text(_isIncome ? 'Доход' : 'Расход',
+                            style: TextStyle(fontSize: 13, color: context.ckHint)),
+                          const SizedBox(height: 6),
+                          Text('$_amount $currency',
+                            style: TextStyle(
+                              fontSize: 48, fontWeight: FontWeight.w800,
+                              color: amountColor, letterSpacing: -1,
+                            )),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Калькулятор
+                    _buildCalculator(),
+                    const SizedBox(height: 20),
+
+                    // Категории
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('КАТЕГОРИЯ', style: TextStyle(
+                          fontSize: 11, fontWeight: FontWeight.w700,
+                          color: context.ckHint, letterSpacing: 0.8,
+                        )),
+                        GestureDetector(
+                          onTap: () => _showAddCategoryDialog(true),
+                          child: const Text('+ Новая',
+                            style: TextStyle(fontSize: 13, color: Coinka.accent, fontWeight: FontWeight.w600)),
                         ),
-                      ),
-                      const SizedBox(height: 24),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    _buildCategoryGrid(),
+                    const SizedBox(height: 20),
 
-                      // Сумма
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Column(
-                          children: [
-                            Text(
-                              _isIncome ? 'Доход' : 'Расход',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: isDark ? const Color(0xFF94a3b8) : const Color(0xFF64748b),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              '₽$_amount',
-                              style: TextStyle(
-                                fontSize: 48,
-                                fontWeight: FontWeight.bold,
-                                color: _isIncome
-                                    ? const Color(0xFF10b981)
-                                    : const Color(0xFFef4444),
-                              ),
-                            ),
-                          ],
+                    // Счёт
+                    Text('СЧЁТ', style: TextStyle(
+                      fontSize: 11, fontWeight: FontWeight.w700, color: context.ckHint, letterSpacing: 0.8)),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: context.ckCard,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: context.ckBorder),
+                      ),
+                      child: DropdownButton<String>(
+                        value: _selectedAccount,
+                        isExpanded: true,
+                        underline: const SizedBox(),
+                        dropdownColor: context.ckCard,
+                        style: TextStyle(fontSize: 15, color: context.ckText, fontWeight: FontWeight.w600),
+                        icon: Icon(Icons.keyboard_arrow_down_rounded, color: context.ckHint),
+                        items: _accounts.map((a) => DropdownMenuItem(value: a, child: Text(a))).toList(),
+                        onChanged: (v) => setState(() => _selectedAccount = v!),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Дата
+                    GestureDetector(
+                      onTap: () => _selectDate(context, true),
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: context.ckCard,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: context.ckBorder),
                         ),
-                      ),
-                      const SizedBox(height: 24),
-
-                      // Калькулятор
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: _buildCalculator(isDark),
-                      ),
-                      const SizedBox(height: 24),
-
-                      // Категории с кнопкой добавления
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  'Категория',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    color: isDark ? Colors.white : const Color(0xFF1e293b),
-                                  ),
-                                ),
-                                // КНОПКА "НОВАЯ КАТЕГОРИЯ"
-                                TextButton.icon(
-                                  onPressed: () => _showAddCategoryDialog(isDark),
-                                  icon: const Icon(
-                                    Icons.add_circle_outline,
-                                    size: 20,
-                                    color: Color(0xFF8b7ff5),
-                                  ),
-                                  label: const Text(
-                                    'Новая',
-                                    style: TextStyle(
-                                      color: Color(0xFF8b7ff5),
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
+                                Text('Дата', style: TextStyle(fontSize: 12, color: context.ckHint)),
+                                const SizedBox(height: 4),
+                                Text('${_selectedDate.day} ${coinkaMonths[_selectedDate.month - 1].toLowerCase()} ${_selectedDate.year}',
+                                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: context.ckText)),
                               ],
                             ),
-                            const SizedBox(height: 12),
-                            _buildCategoryGrid(isDark),
+                            const Icon(Icons.calendar_today_rounded, color: Coinka.accent, size: 20),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 24),
+                    ),
+                    const SizedBox(height: 16),
 
-                      // Счёт
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: EnhancedGlassCard(
-                          padding: const EdgeInsets.all(16),
-                          color: isDark
-                              ? const Color(0xFF1e293b).withOpacity(0.5)
-                              : Colors.white.withOpacity(0.7),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Счёт',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: isDark ? const Color(0xFF94a3b8) : const Color(0xFF64748b),
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              DropdownButton<String>(
-                                value: _selectedAccount,
-                                isExpanded: true,
-                                underline: const SizedBox(),
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                  color: isDark ? Colors.white : const Color(0xFF1e293b),
-                                ),
-                                dropdownColor: isDark ? const Color(0xFF1e293b) : Colors.white,
-                                items: _accounts.map((account) {
-                                  return DropdownMenuItem(
-                                    value: account,
-                                    child: Text(account),
-                                  );
-                                }).toList(),
-                                onChanged: (value) {
-                                  setState(() {
-                                    _selectedAccount = value!;
-                                  });
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
+                    // Комментарий
+                    TextField(
+                      controller: _commentController,
+                      maxLines: 2,
+                      style: TextStyle(color: context.ckText, fontSize: 15),
+                      decoration: InputDecoration(
+                        hintText: 'Комментарий...',
+                        hintStyle: TextStyle(color: context.ckHint, fontSize: 15),
+                        filled: true, fillColor: context.ckCard,
+                        contentPadding: const EdgeInsets.all(16),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: context.ckBorder)),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: context.ckBorder)),
+                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Coinka.accent, width: 1.5)),
                       ),
-                      const SizedBox(height: 16),
+                    ),
 
-                      // Дата
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: EnhancedGlassCard(
-                          padding: const EdgeInsets.all(16),
-                          color: isDark
-                              ? const Color(0xFF1e293b).withOpacity(0.5)
-                              : Colors.white.withOpacity(0.7),
-                          child: InkWell(
-                            onTap: () => _selectDate(context, isDark),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    // Вклад в цель (только для доходов)
+                    if (_isIncome) ...[
+                      const SizedBox(height: 16),
+                      Consumer<GoalProvider>(
+                        builder: (context, goalProvider, _) {
+                          final goals = goalProvider.goals;
+                          if (goals.isEmpty) return const SizedBox.shrink();
+                          return Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: context.ckCard,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: context.ckBorder),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
-                                    Text(
-                                      'Дата',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: isDark ? const Color(0xFF94a3b8) : const Color(0xFF64748b),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      '${_selectedDate.day}.${_selectedDate.month}.${_selectedDate.year}',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                        color: isDark ? Colors.white : const Color(0xFF1e293b),
-                                      ),
+                                    Text('Внести в цель', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: context.ckText)),
+                                    CupertinoSwitch(
+                                      value: _contributeToCertainGoal,
+                                      activeColor: Coinka.accent,
+                                      onChanged: (v) => setState(() { _contributeToCertainGoal = v; if (!v) _selectedGoalId = null; }),
                                     ),
                                   ],
                                 ),
-                                Icon(
-                                  Icons.calendar_today,
-                                  color: isDark ? const Color(0xFF8b7ff5) : const Color(0xFF64748b),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Комментарий
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: EnhancedGlassCard(
-                          padding: const EdgeInsets.all(16),
-                          color: isDark
-                              ? const Color(0xFF1e293b).withOpacity(0.5)
-                              : Colors.white.withOpacity(0.7),
-                          child: TextField(
-                            controller: _commentController,
-                            maxLines: 3,
-                            style: TextStyle(
-                              color: isDark ? Colors.white : const Color(0xFF1e293b),
-                            ),
-                            decoration: InputDecoration(
-                              hintText: 'Добавить комментарий...',
-                              hintStyle: TextStyle(
-                                color: isDark ? const Color(0xFF64748b) : const Color(0xFF94a3b8),
-                              ),
-                              border: InputBorder.none,
-                            ),
-                          ),
-                        ),
-                      ),
-                      // Вклад в цель (только для доходов)
-                      if (_isIncome) ...[
-                        const SizedBox(height: 16),
-                        Padding(
-                          
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Consumer<GoalProvider>(
-                            builder: (context, goalProvider, _) {
-                              final goals = goalProvider.goals;
-                              
-                              if (goals.isEmpty) {
-                                return const SizedBox();
-                              }
-                              
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  // Переключатель "Внести в конкретную цель"
-                                  EnhancedGlassCard(
-                                    padding: const EdgeInsets.all(16),
-                                    color: isDark
-                                        ? const Color(0xFF1e293b).withOpacity(0.5)
-                                        : Colors.white.withOpacity(0.7),
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.flag_outlined,
-                                          color: isDark ? const Color(0xFF8b7ff5) : const Color(0xFF64748b),
+                                if (_contributeToCertainGoal) ...[
+                                  const SizedBox(height: 12),
+                                  ...goals.map((goal) {
+                                    final isSelected = _selectedGoalId == goal.id;
+                                    return GestureDetector(
+                                      onTap: goal.isCompleted ? null : () => setState(() => _selectedGoalId = isSelected ? null : goal.id),
+                                      child: Container(
+                                        margin: const EdgeInsets.only(bottom: 8),
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: BoxDecoration(
+                                          color: isSelected ? Coinka.accentDim : context.ckS2,
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(color: isSelected ? Coinka.accent : Colors.transparent),
                                         ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                'Внести в конкретную цель',
-                                                style: TextStyle(
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.w600,
-                                                  color: isDark ? Colors.white : const Color(0xFF1e293b),
-                                                ),
-                                              ),
-                                              const SizedBox(height: 2),
-                                              Text(
-                                                'Помимо автоматического распределения',
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  color: isDark ? const Color(0xFF94a3b8) : const Color(0xFF64748b),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        Switch(
-                                          value: _contributeToCertainGoal,
-                                          onChanged: (value) {
-                                            setState(() {
-                                              _contributeToCertainGoal = value;
-                                              if (!value) {
-                                                _selectedGoalId = null;
-                                              }
-                                            });
-                                          },
-                                          activeColor: const Color(0xFF8b7ff5),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  
-                                  // Выбор цели (если переключатель включен)
-                                  if (_contributeToCertainGoal) ...[
-                                    const SizedBox(height: 12),
-                                    EnhancedGlassCard(
-                                      padding: const EdgeInsets.all(16),
-                                      color: isDark
-                                          ? const Color(0xFF1e293b).withOpacity(0.5)
-                                          : Colors.white.withOpacity(0.7),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'Выберите цель',
-                                            style: TextStyle(
-                                              fontSize: 14,
-                                              color: isDark ? const Color(0xFF94a3b8) : const Color(0xFF64748b),
-                                            ),
-                                          ),
-                                          const SizedBox(height: 12),
-                                          ...goals.map((goal) {
-                                            final isSelected = _selectedGoalId == goal.id;
-                                            final progress = goal.progress;
-                                            final isCompleted = goal.isCompleted;
-                                            
-                                            return GestureDetector(
-                                              onTap: isCompleted ? null : () {
-                                                setState(() {
-                                                  _selectedGoalId = isSelected ? null : goal.id;
-                                                });
-                                              },
-                                              child: Container(
-                                                margin: const EdgeInsets.only(bottom: 8),
-                                                padding: const EdgeInsets.all(12),
-                                                decoration: BoxDecoration(
-                                                  color: isSelected
-                                                      ? const Color(0xFF8b7ff5).withOpacity(0.15)
-                                                      : (isDark 
-                                                          ? const Color(0xFF0f172a).withOpacity(0.5)
-                                                          : Colors.white.withOpacity(0.5)),
-                                                  borderRadius: BorderRadius.circular(12),
-                                                  border: Border.all(
-                                                    color: isSelected
-                                                        ? const Color(0xFF8b7ff5)
-                                                        : (isCompleted
-                                                            ? const Color(0xFF059669)
-                                                            : Colors.transparent),
-                                                    width: isSelected ? 2 : 1,
-                                                  ),
-                                                ),
-                                                child: Row(
-                                                  children: [
-                                                    // Иконка/Эмодзи
-                                                    Text(
-                                                      goal.icon,
-                                                      style: const TextStyle(fontSize: 24),
-                                                    ),
-                                                    const SizedBox(width: 12),
-                                                    
-                                                    // Информация о цели
-                                                    Expanded(
-                                                      child: Column(
-                                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                                        children: [
-                                                          Row(
-                                                            children: [
-                                                              Expanded(
-                                                                child: Text(
-                                                                  goal.name,
-                                                                  style: TextStyle(
-                                                                    fontSize: 14,
-                                                                    fontWeight: FontWeight.w600,
-                                                                    color: isDark ? Colors.white : const Color(0xFF1e293b),
-                                                                    decoration: isCompleted ? TextDecoration.lineThrough : null,
-                                                                  ),
-                                                                  maxLines: 1,
-                                                                  overflow: TextOverflow.ellipsis,
-                                                                ),
-                                                              ),
-                                                              if (isCompleted)
-                                                                Container(
-                                                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                                                  decoration: BoxDecoration(
-                                                                    color: const Color(0xFF059669).withOpacity(0.2),
-                                                                    borderRadius: BorderRadius.circular(4),
-                                                                  ),
-                                                                  child: Text(
-                                                                    'Достигнута',
-                                                                    style: TextStyle(
-                                                                      fontSize: 10,
-                                                                      fontWeight: FontWeight.w600,
-                                                                      color: isDark ? const Color(0xFF34d399) : const Color(0xFF047857),
-                                                                    ),
-                                                                  ),
-                                                                ),
-                                                            ],
-                                                          ),
-                                                          const SizedBox(height: 4),
-                                                          Row(
-                                                            children: [
-                                                              Text(
-                                                                '₽${goal.currentAmount.toStringAsFixed(0)}',
-                                                                style: TextStyle(
-                                                                  fontSize: 12,
-                                                                  color: isDark ? const Color(0xFF94a3b8) : const Color(0xFF64748b),
-                                                                ),
-                                                              ),
-                                                              Text(
-                                                                ' / ₽${goal.targetAmount.toStringAsFixed(0)}',
-                                                                style: TextStyle(
-                                                                  fontSize: 12,
-                                                                  color: isDark ? const Color(0xFF64748b) : const Color(0xFF94a3b8),
-                                                                ),
-                                                              ),
-                                                              const SizedBox(width: 8),
-                                                              Text(
-                                                                '${goal.progressPercentage.toStringAsFixed(0)}%',
-                                                                style: TextStyle(
-                                                                  fontSize: 12,
-                                                                  fontWeight: FontWeight.w600,
-                                                                  color: isCompleted
-                                                                      ? const Color(0xFF059669)
-                                                                      : const Color(0xFF8b7ff5),
-                                                                ),
-                                                              ),
-                                                            ],
-                                                          ),
-                                                          const SizedBox(height: 6),
-                                                          ClipRRect(
-                                                            borderRadius: BorderRadius.circular(4),
-                                                            child: LinearProgressIndicator(
-                                                              value: progress,
-                                                              backgroundColor: isDark 
-                                                                  ? const Color(0xFF334155)
-                                                                  : const Color(0xFFe2e8f0),
-                                                              valueColor: AlwaysStoppedAnimation<Color>(
-                                                                isCompleted 
-                                                                    ? const Color(0xFF059669)
-                                                                    : const Color(0xFF8b7ff5),
-                                                              ),
-                                                              minHeight: 4,
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    ),
-                                                    
-                                                    // Чекбокс
-                                                    if (isSelected && !isCompleted)
-                                                      const Icon(
-                                                        Icons.check_circle,
-                                                        color: Color(0xFF8b7ff5),
-                                                        size: 24,
-                                                      ),
-                                                  ],
-                                                ),
-                                              ),
-                                            );
-                                          }),
-                                        ],
-                                      ),
-                                    ),
-                                    
-                                    // Поле для ввода суммы вклада
-                                    if (_selectedGoalId != null) ...[
-                                      const SizedBox(height: 12),
-                                      EnhancedGlassCard(
-                                        padding: const EdgeInsets.all(16),
-                                        color: isDark
-                                            ? const Color(0xFF1e293b).withOpacity(0.5)
-                                            : Colors.white.withOpacity(0.7),
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                        child: Row(
                                           children: [
-                                            Row(
+                                            Text(goal.icon, style: const TextStyle(fontSize: 22)),
+                                            const SizedBox(width: 10),
+                                            Expanded(child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
                                               children: [
-                                                Icon(
-                                                  Icons.info_outline,
-                                                  size: 16,
-                                                  color: isDark ? const Color(0xFF8b7ff5) : const Color(0xFF64748b),
-                                                ),
-                                                const SizedBox(width: 8),
-                                                Expanded(
-                                                  child: Text(
-                                                    'Эта сумма будет добавлена к цели дополнительно к автоматическому распределению',
-                                                    style: TextStyle(
-                                                      fontSize: 12,
-                                                      color: isDark ? const Color(0xFF94a3b8) : const Color(0xFF64748b),
-                                                    ),
-                                                  ),
-                                                ),
+                                                Text(goal.name, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.ckText)),
+                                                const SizedBox(height: 3),
+                                                ClipRRect(borderRadius: BorderRadius.circular(3), child: LinearProgressIndicator(
+                                                  value: goal.progress,
+                                                  backgroundColor: context.ckMuted,
+                                                  valueColor: const AlwaysStoppedAnimation(Coinka.accent),
+                                                  minHeight: 3,
+                                                )),
                                               ],
-                                            ),
+                                            )),
+                                            if (isSelected) const Icon(Icons.check_circle_rounded, color: Coinka.accent, size: 20),
                                           ],
                                         ),
                                       ),
-                                    ],
-                                  ],
+                                    );
+                                  }),
                                 ],
-                              );
-                            },
-                          ),
-                        ),
-                      ],
+                              ],
+                            ),
+                          );
+                        },
+                      ),
                     ],
-                  ),
+                    const SizedBox(height: 32),
+                  ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -748,7 +441,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   Future<void> _scanReceipt() async {
     final sub = context.read<SubscriptionProvider>();
     if (!sub.canScanReceipt) {
-      sub.showPremiumDialog(context);
+      sub.showPremiumDialog(context, 'receipt_scan');
       return;
     }
     final picker = ImagePicker();
@@ -986,125 +679,97 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
 
 
-  Widget _buildTypeButton(String label, bool isIncome, bool isDark) {
+  Widget _buildTypeButton(String label, bool isIncome) {
     final isSelected = _isIncome == isIncome;
+    final c = isIncome ? Coinka.green : Coinka.red;
     return GestureDetector(
-      onTap: () => setState(() => _isIncome = isIncome),
-      child: Container(
+      onTap: () { HapticFeedback.selectionClick(); setState(() => _isIncome = isIncome); },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: isSelected
-              ? (isIncome ? const Color(0xFF10b981) : const Color(0xFFef4444))
-              : Colors.transparent,
+          color: isSelected ? c.withOpacity(0.18) : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: isSelected ? c : Colors.transparent, width: 1.5),
         ),
-        child: Text(
-          label,
+        child: Text(label,
           textAlign: TextAlign.center,
           style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: isSelected
-                ? Colors.white
-                : (isDark ? const Color(0xFF94a3b8) : const Color(0xFF64748b)),
+            fontSize: 15, fontWeight: FontWeight.w700,
+            color: isSelected ? c : context.ckHint,
           ),
         ),
       ),
     );
   }
 
-  Widget _buildCalculator(bool isDark) {
-    final buttons = [
-      '1', '2', '3',
-      '4', '5', '6',
-      '7', '8', '9',
-      '.', '0', '⌫',
-    ];
-
+  Widget _buildCalculator() {
+    const buttons = ['1','2','3','4','5','6','7','8','9','.','0','⌫'];
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        mainAxisSpacing: 12,
-        crossAxisSpacing: 12,
-        childAspectRatio: 1.5,
+        crossAxisCount: 3, mainAxisSpacing: 8, crossAxisSpacing: 8, childAspectRatio: 2,
       ),
       itemCount: buttons.length,
       itemBuilder: (context, index) {
-        final button = buttons[index];
+        final btn = buttons[index];
+        final isDelete = btn == '⌫';
         return GestureDetector(
-          onTap: () => _onCalculatorTap(button),
+          onTap: () { HapticFeedback.lightImpact(); _onCalculatorTap(btn); },
           child: Container(
             decoration: BoxDecoration(
-              color: isDark
-                  ? const Color(0xFF1e293b).withOpacity(0.5)
-                  : Colors.white.withOpacity(0.7),
+              color: isDelete ? context.ckS2 : context.ckCard,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: Colors.white.withOpacity(0.3),
-                width: 1,
-              ),
+              border: Border.all(color: context.ckBorder),
             ),
-            child: Center(
-              child: Text(
-                button,
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? Colors.white : const Color(0xFF1e293b),
-                ),
+            child: Center(child: Text(btn,
+              style: TextStyle(
+                fontSize: 22, fontWeight: FontWeight.w600,
+                color: isDelete ? Coinka.red : context.ckText,
               ),
-            ),
+            )),
           ),
         );
       },
     );
   }
 
-  Widget _buildCategoryGrid(bool isDark) {
+  Widget _buildCategoryGrid() {
     final categories = _isIncome ? _incomeCategories : _expenseCategories;
+    final w = (MediaQuery.of(context).size.width - 32 - 24) / 4;
 
     return Wrap(
-      spacing: 12,
-      runSpacing: 12,
+      spacing: 8,
+      runSpacing: 8,
       children: categories.entries.map((entry) {
         final isSelected = _selectedCategory == entry.key;
-        final color = entry.value['color'] as Color;
-        final int iconCode = entry.value['icon'] as int;
-        final icon = _materialIconMap[iconCode] ?? Icons.help_outline;
-
+        final emoji = Coinka.emojiFor(entry.key, isIncome: _isIncome);
         return GestureDetector(
-          onTap: () => setState(() => _selectedCategory = entry.key),
-          child: Container(
-            width: (MediaQuery.of(context).size.width - 64) / 3,
-            padding: const EdgeInsets.all(12),
+          onTap: () { HapticFeedback.selectionClick(); setState(() => _selectedCategory = entry.key); },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            width: w,
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
             decoration: BoxDecoration(
-              color: isSelected
-                  ? color.withOpacity(0.2)
-                  : (isDark
-                      ? const Color(0xFF1e293b).withOpacity(0.3)
-                      : Colors.white.withOpacity(0.5)),
-              borderRadius: BorderRadius.circular(16),
+              color: isSelected ? Coinka.accentDim : context.ckCard,
+              borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: isSelected ? color : Colors.white.withOpacity(0.3),
-                width: isSelected ? 2 : 1,
+                color: isSelected ? Coinka.accent : context.ckBorder,
+                width: isSelected ? 1.5 : 1,
               ),
             ),
             child: Column(
               children: [
-                Icon(icon, color: color, size: 32),
-                const SizedBox(height: 8),
-                Text(
-                  entry.key,
+                Text(emoji, style: const TextStyle(fontSize: 24)),
+                const SizedBox(height: 4),
+                Text(entry.key,
                   style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                    color: isDark ? Colors.white : const Color(0xFF1e293b),
+                    fontSize: 11, fontWeight: FontWeight.w600,
+                    color: isSelected ? Coinka.accent : context.ckHint,
                   ),
                   textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
